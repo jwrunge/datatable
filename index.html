@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset='utf8'>
+	<meta name='viewport' content='width=device-width'>
+
+	<title>Datatable Test</title>
+
+	<link rel='icon' type='image/png' href='/favicon.png'>
+	<link rel='stylesheet' href='/dist/datatable-style.css'>
+</head>
+
+<body>
+	<h1>Test page</h1>
+	<p>Testing datatable.</p>
+	<div id="table"></div>
+
+	<script src="./dist/datatable.js"></script>
+	<script type="module">
+		let sourceData = [
+			{
+				name: "Jake",
+				age: 33,
+				profession: "Coder"
+			},
+			{
+				name: "Mary",
+				age: 32,
+				profession: "Pastor"
+			},
+			{
+				name: "Isaac",
+				age: 2,
+				profession: "Kid"
+			},
+			{
+				name: "Elinor",
+				age: 0,
+				profession: "Baby"
+			}
+		]
+
+		const dt = new datatable({
+			target: document.getElementById("table"),
+			props: {
+				sourceData
+			}
+		})
+	</script>
+</body>
+</html>
