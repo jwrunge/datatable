@@ -14,6 +14,8 @@ const babelSettings = {
     plugins: ['@babel/plugin-external-helpers', '@babel/plugin-transform-runtime', '@babel/plugin-proposal-object-rest-spread']
 }
 
+const pkg = require("./package.json")
+
 function plugins(watchDir, loadDir, watch = false) {
     return [
         svelte({
@@ -50,12 +52,14 @@ function plugins(watchDir, loadDir, watch = false) {
 export default [
     {
         input: 'src/Datatable.svelte',
-        output: {
-            sourcemap: true,
-            file: 'dist/datatable.js',
-            name: "datatable",
-            format: 'umd'
-        },
+        output: [
+            // sourcemap: true,
+            { file: pkg.module, format: 'es' },
+            { file: pkg.main, format: 'umd', name: "DataTable" }
+            // file: 'dist/datatable.js',
+            // name: "datatable",
+            // format: 'umd'
+        ],
         plugins: plugins("dist/", "", true),
 
         watch: {

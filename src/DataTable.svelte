@@ -601,8 +601,6 @@
     })
 </script>
 
-<svelte:options tag="data-table"/>
-
 <!-- Table-constraining div and table -->
 <div class='constrain-table' class:limitHeight={limitHeight} class:scroll={ responsiveType == 'scroll' }>
     <table this={datatable} class:stack={responsiveType == 'stack'} class:tooBig={ tableTooBig } style="width: {tableWidth}; min-width: {tableMinWidth}; max-width: {tableMaxWidth};">

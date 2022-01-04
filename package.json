@@ -1,14 +1,16 @@
 {
-  "name": "datatable",
-  "version": "1.0.0",
+  "name": "@jwrunge/datatable",
+  "version": "0.1.4",
   "description": "A sortable, filterable, searchable, editable data table that can display arrays, maps, and arrays of maps dynamically. Available as a web component or Svelte component.",
-  "main": "dist/datatable.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "svelte": "src/index.js",
   "scripts": {
     "sass": "sass --style=compressed src/style.scss dist/datatable-style.css",
     "rollup-dev": "rollup -c -w",
     "rollup-prod": "rollup -c",
     "dev": "run-s sass rollup-dev",
-    "prod": "run-s ass rollup-prod",
+    "prod": "run-s sass rollup-prod",
     "create-web-module": "",
     "test-web-module": "php -S localhost:80 -t ./test-web"
   },
