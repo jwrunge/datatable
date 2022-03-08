@@ -53,12 +53,8 @@ export default [
     {
         input: 'src/Datatable.svelte',
         output: [
-            // sourcemap: true,
             { file: pkg.module, format: 'es' },
             { file: pkg.main, format: 'umd', name: "DataTable" }
-            // file: 'dist/datatable.js',
-            // name: "datatable",
-            // format: 'umd'
         ],
         plugins: plugins("dist/", "", true),
 

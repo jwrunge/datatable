@@ -112,7 +112,7 @@
             <span class="keyname"><em>{objKey}: </em></span>
         {/if}
 
-        <span class="left-pad">
+        <span class="left-pad" on:click={config.clickEvent ? config.clickEvent : null}>
             <!-- Handle variable values -->
             {#if config && config.variableValues}
                 {#if config.clickable}
@@ -142,6 +142,8 @@
             {:else if config && config.clickable && value !== null && value !== undefined && config.clickable != "drill"}
                 <!-- svelte-ignore a11y-invalid-attribute -->
                 <a href="" on:click|preventDefault={()=> { dispatch("fieldClick") }}>{ value }</a>
+            {:else if config && config.html}
+                { @html value }
             {:else}
                 { value }
             {/if}

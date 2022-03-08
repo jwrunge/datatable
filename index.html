@@ -6,8 +6,8 @@
 
 	<title>Datatable Test</title>
 
-	<link rel='icon' type='image/png' href='/favicon.png'>
-	<link rel='stylesheet' href='/dist/datatable-style.css'>
+	<link rel='icon' type='image/png' href='./favicon.png'>
+	<link rel='stylesheet' href='./dist/datatable-style.css'>
 </head>
 
 <body>
@@ -15,7 +15,7 @@
 	<p>Testing datatable.</p>
 	<div id="table"></div>
 
-	<script src="./dist/datatable.js"></script>
+	<script src="./dist/index.js"></script>
 	<script type="module">
 		let sourceData = [
 			{
@@ -40,11 +40,59 @@
 			}
 		]
 
-		const dt = new datatable({
+		for(let i=0; i<1000; i++) {
+			sourceData.push({ 
+				name: "Added " + (i+1),
+				age: (i+1),
+				profession: "Doer of " + (i+1)
+			})
+		}
+
+		let addedColumns = [
+			{colName: "funtimes", func: row=> "Fun " + row.name}
+		]
+
+		let configuration = {
+			"name": {}, "age": {}, "profession": {}, "funtimes": { }
+		}
+
+		const dt = new DataTable({
 			target: document.getElementById("table"),
 			props: {
-				sourceData
+				sourceData, overrideDeleteModal: true,
+				interactivity: {
+					customMenu: [
+						{
+							display: "Option 1",
+							preventDefault: true
+						},
+						{
+							display: "Option 2",
+							preventDefault: true
+						},
+					],
+				},
+				diagnostics: {
+					logStages: true
+				},
+				processing: {
+					addedColumns,
+					configuration
+				}				
 			}
+		})
+
+		dt.$on("customMenuClick", (e)=> {
+			addedColumns.push({
+				colName: "Great TIMES!",
+				func: function() {return "Yayz"}
+			})
+			configuration["Great TIMES!"] = true
+
+			dt.$set({processing: {
+				addedColumns,
+				configuration
+			}})
 		})
 	</script>
 </body>

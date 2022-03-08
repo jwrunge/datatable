@@ -63,8 +63,8 @@
 }
 
 .constrain-table {
-    margin: 1em 0;
     overflow: hidden;
+    overflow-y: auto;
 
     &.scroll {
         max-width: 100%;
@@ -72,7 +72,6 @@
     }
     &.limitHeight {
         max-height: 70vh;
-        overflow-y: auto;
     }
 }
 
@@ -139,27 +138,6 @@ thead {
     }
 }
 tbody {
-    tr {
-        &.controls {
-            background: transparent;
-            
-            td {
-                padding: 0;
-            }
-
-            .controlrow {
-                padding: .25em;
-
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-
-                &.alignright {
-                    justify-content: flex-end;
-                }
-            }
-        }
-    }
     td {
         min-width: none;
         max-width: 8em;
@@ -193,6 +171,7 @@ td.hover-event:hover {
     img {
         vertical-align: bottom;
         max-width: 1em;
+        max-height: 1em;
         padding: .25em;
         margin: 0;
     }
@@ -253,5 +232,36 @@ td.hover-event:hover {
         padding: 0 5px;
         bottom: -3px;
         right: -2px;
+    }
+}
+
+.customMenuBackground {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+}
+
+.position-relative {
+    position: relative;
+}
+
+.customMenuBar {
+    position: absolute;
+    right: 0;
+    background: white;
+    padding: 2px;
+    z-index: 2;
+
+    &.highZ {
+        z-index: 201;
+    }
+
+    a {
+        display: block;
+        padding: .5em;
     }
 }

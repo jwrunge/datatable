@@ -1,44 +1,87 @@
 <script>
-    import {onMount, createEventDispatcher, tick} from "svelte"
+    import {onMount, createEventDispatcher, afterUpdate, beforeUpdate} from "svelte"
     import Fuse from "fuse.js"
     import Modal from "./Modal.svelte"
     import DataTableValue from "./DataTableValue.svelte"
-    import {DataInterface} from "./datatableFuncs.js"
+    import {slide, fade} from "svelte/transition"
+    // import {DataInterface} from "./datatableFuncs.js"
 
     const dispatch = createEventDispatcher()
 
+    //Prevent multiple redraws/resorts
+    let reSortTimer = null
+    let setupConfigTimer = null
+    let initialLoad = false
+    let initialSearch = false
+
+    //Parameters
     export let sourceData
     let tableData
-    export let responsiveType = "stack"
-    export let limitHeight = false
     
-    export let maxResultsPerPage = 0
-    export let displayOnly = false
-    export let tableWidth = "100%"
-    export let tableMinWidth = "none"
-    export let tableMaxWidth = "none"
-    export let addedColumns = null
-    export let hideControls = false
-    export let hideAddButton = false
-    export let hideDeleteButton = false
-    export let hideFilterButton = false
-    export let autoEditable = false
-    export let autoClickable = false
-    export let autoSearchable = false
-    export let noDataNote = "No data present"
-    export let sortable = true
-    export let hideCheckboxes = false
+    export let metadata = {}
+    let meta = {
+        tableHeadHtml: "",
+        responsiveType: "stack",
+        limitHeight: false,
+        maxHeight: null,
+        displayOnly: false,
+        tableWidth: "100%",
+        tableMinWidth: "none",
+        tableMaxWidth: "none",
+        maxResultsPerPage: 0
+    }
+
+    export let processing = {}
+    let dataInterface = {
+        configuration: null,
+        addedColumns: null,
+        autoEditable: false,
+        autoClickable: false,
+        autoSearchable: false,
+        noDataNote: "No data present",
+        sortable: true
+    }
+
+    export let interactivity = {}
+    let controls = {
+        hideAll: false,
+        hideAddButton: false,
+        hideDeleteButton: false,
+        hideFilterButton: false,
+        hideCheckboxes: false,
+        overrideAddModal: false,
+        overrideDeleteModal: false,
+        overrideColumnsModal: false,
+        customMenu: false
+    }
+
+    export let exports = {
+        strResults: "",
+    }
+
+    export function chooseColumns() {
+        console.log("FIRING")
+        if(!controls.overrideColumnsModal) {
+            columnsModalOpen = true
+        }
+        dispatch("chooseColumns")
+    }
+
+    $: console.log(exports.chooseColumns)
+
+    export let diagnostics = {
+        logStages: false
+    } 
 
     let keyStructure = []
     let searchFields = []
     let noFilterFields = []
-    export let configuration = null
     let config = {}
+    let customMenuOpen = false
 
     //Refs
     let datatable
     let topcheckboxChecked = false
-    let skipReSort = false
     
     let searchTimeout
     let tableTooBig = false  //Sets classes based on dynamic breakpoint
@@ -61,6 +104,7 @@
         header: "No message",
         message: "No message was sent"
     }
+    let columnsModalOpen = false
     let propAddModalOpen = false
     let newPropVal
     let mode
@@ -68,30 +112,65 @@
     //Computed
     let sortedData
     let numSelectedRows = 0
+    let column_categories = []
 
     //Watch
-    $: sourceData, handleTableDataChange()
-    $: tableData, getSortedData()
-    $: configuration, setupConfig()
-    $: responsiveType, resetComponent()
+    // $: sourceData, handleTableDataChange()
+    $: tableData, reSort("table data change")
+    $: processing, reInitializeTable()
     $: searchValue, searchChange()
     $: topcheckboxChecked, selectAllRows()
     $: selectedRows, calcSelectedRows()
-    $: maxResultsPerPage, (()=> {
-        currentRecordOffset = 0
-        getSortedData()
+    $: metadata, (()=> {
+        meta = {...meta, ...metadata}
     })()
 
+    beforeUpdate(()=> {
+        dispatch("beforeUpdate")
+    })
+
+    afterUpdate(()=> {
+        dispatch("afterUpdate")
+    })
+
     //Functions
-    function handleTableDataChange() {
-        if(sourceData)
-            tableData = JSON.parse(JSON.stringify(sourceData))
-        else if(!tableData) tableData = []
+    function determineMode(data) {
+        let newmode
+    
+        if(Array.isArray(data)) {
+            //Test for props
+            let hasProps = false
+            if(typeof data[0] !== "string") {
+                for(let prop in data[0]) {
+                    if(data[0].hasOwnProperty(prop)) {
+                        hasProps = true
+                        break
+                    }
+                }
+            }
+    
+            if(hasProps) newmode = 'arrObjs'
+            else newmode = 'arr'
+        }
+        else {
+            newmode = 'obj'
+        }
+    
+        return newmode
+    }
 
-        setupConfig()
+    function reSetupConfig() {
+        if(!initialLoad) return
 
-        getSortedData()
-        resetComponent()
+        if(setupConfigTimer) clearTimeout(setupConfigTimer)
+        setupConfigTimer = setTimeout(()=> {
+            if(diagnostics.logStages) {
+                console.group("Setup config")
+                console.log("Started - " + Date.now())
+                console.time("Setup config")
+            }
+            setupConfig()
+        }, 100)
     }
 
     function setupConfig() {
@@ -101,40 +180,40 @@
         keyStructure = []
 
         //Set mode
-        mode = DataInterface.determineMode(tableData)
+        mode = determineMode(tableData)
         
         //Set variables based on config value
-        if(!configuration) {
+        if(!dataInterface.configuration) {
             config = {}
             let initValue = {}
 
-            if(!autoEditable, !autoSearchable, !autoClickable)
+            if(!dataInterface.autoEditable, !dataInterface.autoSearchable, !dataInterface.autoClickable)
                 initValue = true
             else {
-                if(autoEditable) initValue.editable = { type: "text" }
-                if(autoSearchable) initValue.searchable = true
-                if(autoClickable) initValue.clickable = autoClickable
+                if(dataInterface.autoEditable) initValue.editable = { type: "text" }
+                if(dataInterface.autoSearchable) initValue.searchable = true
+                if(dataInterface.autoClickable) initValue.clickable = dataInterface.autoClickable
             }
 
             if(mode == 'arrObjs') {
                 for(let key in tableData[0]) {
                     keyStructure.push(key)
                     config[key] = initValue
-                    if(autoSearchable) searchFields.push(key)
+                    if(dataInterface.autoSearchable) searchFields.push(key)
                 }
             }
             else if(mode == 'arr') {
                 keyStructure.push("Values")
                 config["Values"] = initValue
-                if(autoSearchable) searchFields.push("Values")
+                if(dataInterface.autoSearchable) searchFields.push("Values")
             }
             else if(mode == 'obj') {
                 keyStructure.push("Values")
                 config["Values"] = initValue
-                if(autoSearchable) searchFields.push("Values")
+                if(dataInterface.autoSearchable) searchFields.push("Values")
             }
         } else { //If the configuration data was set
-            config = configuration
+            config = dataInterface.configuration
             for(let i=0; i<Object.keys(config).length; i++) {
                 let key = Object.keys(config)[i]
                 let val = config[key]
@@ -147,42 +226,117 @@
             }
         }
 
+        //Construct column_categories
+        column_categories = []
+        for(let key of Object.keys(config)) {
+            let cat = config[key] && config[key].category ? config[key].category : "Required"
+            if(config[key] === true) {
+                config[key] = { category: "Required", enabled: true }
+            }
+            if(config[key] && config[key].category && !config[key].category !== false) config[key].category = "Required"
+            if(config[key] && config[key].enabled !== false) config[key].enabled = true
+
+            if(cat && !column_categories.includes(cat)) column_categories.push(cat)
+        }
+
         if(keyStructure.length > 1) mode = "arrObjs"
+
+        if(diagnostics.logStages) {
+            console.log("%cEnded - " + Date.now(), "color: lightblue; background: blue; font-weight: bold;")
+            console.timeEnd("Setup config")
+            console.groupEnd("Setup config")
+        }
     }
 
     function calcSelectedRows() {
+        if(!sortedData) {
+            exports.strResults = ""
+            return
+        }
+
         let accum = 0
         for(let i=0; i<selectedRows.length; i++) { 
             if(selectedRows[i]==true) 
                 accum++ 
         }
         numSelectedRows = accum
+
+        let label = sortedData.length == 1 ? "result" : "results"
+        if(numSelectedRows > 0) {         
+            exports.strResults = `${sortedData.length} ${label} (${numSelectedRows} selected)`
+        }
+        else exports.strResults = `${sortedData.length} ${label}`
+
+        returnSelected()
     }
 
-    function calcAddedColumns(row, index, column) {
-        //Row and index are used in eval
-        if(column.value) return column.value
-        else if(column.eval) {
-            return Function(`'use strict'; let row = ${JSON.stringify(row)}; let index = ${index}; return (${column.eval})`)()
-            //return eval(column.eval)
+    function calcAddedColumns(tempData) {
+        if(dataInterface.addedColumns) {
+            for(let column of dataInterface.addedColumns) {
+                //Check if we really need to calculate
+                if(config[column.colName] && config[column.colName].enabled === false) continue
+
+                for(let i=0; i < tempData.length; i++) {
+                    tempData[i][column.colName] = (()=> {
+                        //Vars
+                        let row = tempData[i]
+                        let index = tempData[i].hmkIndex
+
+                        //Row and index are used in eval
+                        let returnval
+                        if(column.value) returnval = column.value
+                        else if(column.eval) {
+                            returnval = Function(`'use strict'; let row = ${JSON.stringify(row)}; let index = ${index}; return (${column.eval})`)()
+                        }
+                        else if(column.func) {
+                            returnval = column.func(row, index)
+                        }
+                        else returnval = ""
+
+                        return returnval
+                    })()
+                }
+            }
+
         }
-        else return ""
+
+        return tempData
+    }
+
+    function reSort(origin = "unknown origin") {
+        if(!initialLoad) return
+
+        if(reSortTimer) clearTimeout(reSortTimer)
+        reSortTimer = setTimeout(()=> {
+            if(diagnostics.logStages) {
+                console.group("Sort")
+                console.log("Sort called from " + origin)
+                console.log("Started - " + Date.now())
+                console.time("Sort duration")
+            }
+            getSortedData()
+        }, 100)
     }
 
     function getSortedData() {
-        if(skipReSort) {
-            skipReSort = false
-            return
-        }
+        //Sort timer begins from calling function
+
+        dispatch("beginsort")
 
         if(!tableData || tableData.length == 0) {
             sortedData = []
+            if(diagnostics.logStages) {
+                console.log("%cAborted - " + Date.now(), "color: pink; font-weight: bold; background: red;")
+                console.timeEnd("Sort duration")
+                console.groupEnd("Sort")
+            }
             return
         }
 
         selectedRows = []
         
         //Avoid mutating the array by copying it (if it's an array!)
+        if(diagnostics.logStages) console.time("Copy temp data")
         let tempData = []
         if(mode != "obj")
             tempData = JSON.parse(JSON.stringify(tableData))
@@ -197,34 +351,37 @@
                 index++
             }
         }
+        if(diagnostics.logStages) console.timeEnd("Copy temp data")
 
         //Handle array
         if(mode == "arr") {
+            if(diagnostics.logStages) console.time("Array - adding original indices")
             //Assign indices to correspond with tableData
             tempData = tempData.map((row, index)=> {
                 return {value: row, hmkIndex: index}
             })
+            if(diagnostics.logStages) console.timeEnd("Array - adding original indices")
         }
 
         //Handle array of objects
         if(mode == "arrObjs") {
+            if(diagnostics.logStages) console.time("Array of obj - adding original indices")
             //Assign indices to correspond with tableData
             tempData = tempData.map((row, index)=> {
                 return {...row, hmkIndex: index}
             })
+            if(diagnostics.logStages) console.timeEnd("Array of obj - adding original indices")
 
+            if(diagnostics.logStages) console.time("Array of obj - calculating added columns")
             //If we are adding columns, do it now
-            if(addedColumns) {
-                for(let column of addedColumns) {
-                    for(let i=0; i < tempData.length; i++) {
-                        tempData[i][column.colName] = calcAddedColumns(tempData[i], tempData[i].hmkIndex, column)
-                    }
-                }
-            }
+            calcAddedColumns(tempData)
+            if(diagnostics.logStages) console.timeEnd("Array of obj - calculating added columns")
         }
 
         //Search data
         if(searchValue) {
+            if(diagnostics.logStages) console.time("Search")
+
             //Set up fuse.js fuzzy search
             let fuse
             let keys 
@@ -271,9 +428,12 @@
             }
 
             tempData = searchResults
+            if(diagnostics.logStages) console.timeEnd("Search")
         }
 
         if(mode == "arrObjs") {
+            if(diagnostics.logStages) console.time("Array of obj - filters")
+
             //Run tests for each filter
             filters.forEach(filter => {
                 tempData = tempData.filter(row => {
@@ -281,7 +441,7 @@
                     let rowData, filterData
 
                     //Account for data type
-                    if(config[filter.key] && config[filter.key].editable && config[filter.key].editable.type == 'date') {
+                    if(config[filter.key] && config[filter.key].editable && (config[filter.key].editable.type == 'date' || config[filter.key].type == "date")) {
                         rowData = new Date(row[filter.key])
                         filterData = new Date(filter.value)
                     }
@@ -310,16 +470,23 @@
                     return test
                 })
             })
+
+            if(diagnostics.logStages) console.timeEnd("Array of obj - filters")
         }
 
         //Sort data
-        if(sortBy != "none")
+        if(sortBy != "none") {
+            if(diagnostics.logStages) console.time("Sort data")
             tempData = tempData.sort(compareKeys(sortBy, sortOrder))
+            if(diagnostics.logStages) console.timeEnd("Sort data")
+        }
 
         //Paginate
-        if(maxResultsPerPage > 0) {
+        if(meta.maxResultsPerPage > 0) {
+            if(diagnostics.logStages) console.time("Paginate")
             filteredMaxResults = tempData.length
-            tempData = tempData.slice(currentRecordOffset, currentRecordOffset + maxResultsPerPage)
+            tempData = tempData.slice(currentRecordOffset, currentRecordOffset + meta.maxResultsPerPage)
+            if(diagnostics.logStages) console.timeEnd("Paginate")
         }
 
         //Return sorted data
@@ -328,6 +495,17 @@
         //Go back a page if necessary
         if(currentRecordOffset > 0 && sortedData.length == 0)
             backOnePage()
+        
+        //Dispatch end of sort
+        dispatch("endsort", {sortedData})
+
+        if(diagnostics.logStages) {
+            console.log("%cEnded - " + Date.now(), "color: lightblue; font-weight: bold; background: blue;")
+            console.timeEnd("Sort duration")
+            console.groupEnd("Sort")
+        }
+
+        exports.strResults = sortedData.length + " results"
     }
 
     function resizeTable() {
@@ -360,12 +538,15 @@
             }
         }
     }
+
     function resetComponent() {
         breakpoint = 0 //Reset the breakpoint for new data
         setTimeout(resizeTable, 50) //Initial sizing; timeout is rather hacky, but allows Vue to rerender for accurate sizing
     }
 
     function selectAllRows() {
+        if(!sortedData) return
+
         if(selectedRows.length > 0) {
             selectedRows = []
         }
@@ -376,35 +557,38 @@
     }
 
     function addElement() {
-        let newElement
-        if(mode == "arrObjs") newElement = {}
-        else if(mode == "arr") newElement = ""
-        else if(mode == "obj") {
-            newPropVal = ""
-            propAddModalOpen = true
-            return
-        }
+        if(!controls.overrideAddModal) {
+            let newElement
+            if(mode == "arrObjs") newElement = {}
+            else if(mode == "arr") newElement = ""
+            else if(mode == "obj") {
+                newPropVal = ""
+                propAddModalOpen = true
+                return
+            }
 
-        for(let i=0; i<keyStructure.length; i++) {
-            //Omit explicitly ommitted columns and hmkIndex
-            if(keyStructure[i] != "hmkIndex" && !config[keyStructure[i]].omit) {
-                let defaultValue = config[keyStructure[i]]
-                    && config[keyStructure[i]].editable 
-                    && config[keyStructure[i]].editable.defaultValue
-                    ? config[keyStructure[i]].editable.defaultValue 
-                    : ""
+            for(let i=0; i<keyStructure.length; i++) {
+                //Omit explicitly ommitted columns and hmkIndex
+                if(keyStructure[i] != "hmkIndex" && !config[keyStructure[i]].omit) {
+                    let defaultValue = config[keyStructure[i]]
+                        && config[keyStructure[i]].editable 
+                        && config[keyStructure[i]].editable.defaultValue
+                        ? config[keyStructure[i]].editable.defaultValue 
+                        : ""
 
-                if(mode == "arrObjs") {
-                    newElement[keyStructure[i]] = defaultValue
-                }
-                else if(mode == "arr") {
-                    newElement = defaultValue
+                    if(mode == "arrObjs") {
+                        newElement[keyStructure[i]] = defaultValue
+                    }
+                    else if(mode == "arr") {
+                        newElement = defaultValue
+                    }
                 }
             }
+
+            tableData.push(newElement)
+            tableData = tableData
         }
 
-        tableData.push(newElement)
-        tableData = tableData
         dispatch("addedItem", { row: tableData[tableData.length - 1], index: tableData.length - 1 })
         dispatch("changed", tableData)
     }
@@ -427,11 +611,14 @@
                     delete tableData[row.key]
                 }
             })
-            tableData = tableData
 
-            deleteModalOpen = false
-            topcheckboxChecked = false
-            selectedRows = []
+            if(!controls.overrideDeleteModal) {
+                tableData = tableData
+
+                deleteModalOpen = false
+                topcheckboxChecked = false
+                selectedRows = []
+            }
 
             dispatch("deleted", {property: propertiesToRemove})
             dispatch("changed", tableData)
@@ -445,17 +632,30 @@
                 indicesToRemove.push(row.hmkIndex)
         })
 
-        //Filter indices out of tableData
-        let filteredData = tableData.filter((row, index)=> {
-            if(!indicesToRemove.includes(index)) return true
-        })
-        tableData = filteredData
-        deleteModalOpen = false
-        topcheckboxChecked = false
-        selectedRows = []
+        if(!controls.overrideDeleteModal) {
+            //Filter indices out of tableData
+            let filteredData = tableData.filter((row, index)=> {
+                if(!indicesToRemove.includes(index)) return true
+            })
+            tableData = filteredData
+            deleteModalOpen = false
+            topcheckboxChecked = false
+            selectedRows = []
+        }
 
         dispatch("deleted", {indices: indicesToRemove})
         dispatch("changed", tableData)
+    }
+
+    function returnSelected() {
+        //Find where in the tableData array this is
+        let indices = []
+        sortedData.forEach((row, index)=> {
+            if(selectedRows[index])
+                indices.push(row.hmkIndex)
+        })
+
+        dispatch("checked", {indices})
     }
 
     function updateSource(row) {
@@ -490,6 +690,12 @@
     }
 
     function openDeleteModal() {
+        if(!selectedRows.includes(true)) return 
+
+        if(controls.overrideDeleteModal) {
+            deleteElements()
+            return
+        }
         if(selectedRows.includes(true))
             deleteModalOpen = true
     }
@@ -497,7 +703,7 @@
     function closeFilters() {
         filterModalOpen = false
         currentRecordOffset = 0
-        getSortedData()
+        reSort("filter update")
     }
 
     function changeSortBy(keyname, disable = true) {
@@ -516,7 +722,7 @@
             sortOrder = 'asc'
         }
         
-        getSortedData()
+        reSort("sort order change")
     }
 
     function compareKeys(key, order = 'asc') {
@@ -572,49 +778,152 @@
 
     //React to search change
     function searchChange(){
+        if(!(searchFields && Array.isArray(searchFields) && searchFields.length)) return
+        if(!initialSearch) {
+            initialSearch = true
+            if(!searchValue) return
+        }
+
         clearTimeout(searchTimeout)
         searchTimeout = setTimeout(()=> {
             sortBy = 'none'
             sortOrder = 'asc'
             currentRecordOffset = 0
-            getSortedData()
+            reSort("search query change")
         }, 200)
     }
 
     //Page nav
     function backOnePage() {
         if(currentRecordOffset > 0) {
-            currentRecordOffset -= maxResultsPerPage
-            getSortedData()
+            currentRecordOffset -= meta.maxResultsPerPage
+            reSort("page change (back)")
         }
     }
     function forwardOnePage() {
-        if(currentRecordOffset + maxResultsPerPage < filteredMaxResults) {
-            currentRecordOffset += maxResultsPerPage
-            getSortedData()
+        if(currentRecordOffset + meta.maxResultsPerPage < filteredMaxResults) {
+            currentRecordOffset += meta.maxResultsPerPage
+            reSort("page change (forward)")
         }
     }
 
-    onMount(()=> {
-        if(!tableData) tableData = []
+    function handleCustomMenuClick(e) {
+        if(e.target.dataset.preventdefault) e.preventDefault()
+        customMenuOpen = false
+
+        //Return indices
+        let indices = []
+        sortedData.forEach((row, index)=> {
+            if(selectedRows[index])
+                indices.push(row.hmkIndex)
+        })
+
+        dispatch("customMenuClick", {indices, menuoption: e.target.dataset.menuoption, tableData, sortedData})
+    }
+
+    function reInitializeTable() {
+        //Set up data (overwrite with user preferences)
+        meta = {...meta, ...metadata}
+        dataInterface = {...dataInterface, ...processing}
+        controls = {...controls, ...interactivity}
+
+        //Initial settings
+        if(sourceData)
+            tableData = JSON.parse(JSON.stringify(sourceData))
+        else if(!tableData) tableData = []
+
+        initialLoad = true
+        reSetupConfig()
+        reSort("table data change")
         resetComponent()
+
+        dispatch("initialized", {tableData})
+    }
+
+    onMount(()=> {
+        reInitializeTable()
     })
 </script>
 
+<!-- Control row -->
+<div class='controlrow'>
+    {#if meta.tableHeadHtml}
+        {@html meta.tableHeadHtml}
+    {/if}
+    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+        <img class='page-arrow' class:disabled={searchValue != ""} alt='back one page' on:click={backOnePage} src='/icons/datatable/left-arrow.svg'>
+    {/if}
+    {#if !meta.displayOnly && !controls.hideAll && searchFields && Array.isArray(searchFields) && searchFields.length}
+        <input type="text" placeholder="Search" bind:value={searchValue}>
+    {:else}
+        <div></div>
+    {/if}
+    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+        <div class="px-1">
+            {#if !searchValue}
+                Page { Math.ceil(currentRecordOffset / meta.maxResultsPerPage) + 1 }/{ Math.ceil((mode == "obj" ? Object.keys(tableData).length : tableData.length)/meta.maxResultsPerPage) }
+            {:else}
+                Results
+            {/if}
+        </div>
+    {/if}
+    <div class='sortby-dropdown' class:shown={tableTooBig && meta.responsiveType == "stack"}>
+        <select id='sortBy' bind:value={sortBy}>
+            <option value="" selected='selected'>None</option>
+            {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
+                <option value="{keyName}">{keyName}</option>
+            {/each}
+        </select>
+        <img alt="" class='icon-withbg' src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
+    </div>
+    {#if !controls.hideAll}
+        <div class='tableActions'>
+            {#if !controls.hideAddButton}
+                <img class='hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
+            {/if}
+            {#if !controls.hideDeleteButton}
+                <img class='deleter' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
+            {/if}
+            {#if mode == "arrObjs" && !controls.hideFilterButton}
+                <span class='filterspan' on:click={ ()=> { filterModalOpen = true }}>
+                    <img class='hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
+                    {#if filters.length > 0} <span class='filterlength'>{ filters.length }</span> {/if}
+                </span>
+            {/if}
+            {#if controls.customMenu}
+                <span class="position-relative">
+                    <img src="/icons/datatable/vertical-menu-dots.svg" alt="table menu" class="customMenu hoverButton" on:click={()=> { customMenuOpen = true }}>
+                    {#if customMenuOpen}
+                        <div class="customMenuBackground" transition:fade={{ duration: 200 }} on:click={()=> { customMenuOpen = false }}></div>
+                        <div transition:slide={{duration: 200}} class="customMenuBar" on:click|preventDefault|stopPropagation class:highZ={customMenuOpen}>
+                            {#each controls.customMenu as opt}
+                                <a href={opt.href || opt.display} class:disabled={opt.disabled} on:click={handleCustomMenuClick} data-menuoption={opt.display} data-preventdefault={opt.preventDefault || false}>{opt.display}</a>
+                            {/each}
+                        </div>
+                    {/if}
+                </span>
+            {/if}
+        </div>
+    {/if}
+    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+        <img class='page-arrow' class:disabled={searchValue != ""} alt='forward one page' on:click={forwardOnePage} src='/icons/datatable/right-arrow.svg'>    
+    {/if}
+</div>
+
 <!-- Table-constraining div and table -->
-<div class='constrain-table' class:limitHeight={limitHeight} class:scroll={ responsiveType == 'scroll' }>
-    <table this={datatable} class:stack={responsiveType == 'stack'} class:tooBig={ tableTooBig } style="width: {tableWidth}; min-width: {tableMinWidth}; max-width: {tableMaxWidth};">
+<div class='constrain-table' class:limitHeight={meta.limitHeight} style="max-height: {meta.maxHeight}" class:scroll={ meta.responsiveType == 'scroll' }>
+    <table this={datatable} class:stack={meta.responsiveType == 'stack'} class:tooBig={ tableTooBig } style="width: {meta.tableWidth}; min-width: {meta.tableMinWidth}; max-width: {meta.tableMaxWidth};">
         <thead>
             <tr>
-                {#if !hideDeleteButton && !hideCheckboxes}
-                    {#if sortedData.length > 0}
+                {#if !controls.hideCheckboxes}
+                    {#if sortedData && sortedData.length > 0}
                         <th class="hover-event checkbox-td" on:click={()=>{ topcheckboxChecked = !topcheckboxChecked }}><input type='checkbox' bind:checked={topcheckboxChecked}></th>
                     {:else}
                         <th class="checkbox-td"></th>
                     {/if}
                 {/if}
-                {#each keyStructure as keyName, i}
-                    <th class:hover-event={sortable} class="left-pad" on:click={()=> { if(!sortable) return; changeSortBy(keyName)}}>
+                {#each keyStructure.filter(key => config[key].enabled !== false) as keyName, i}
+                    <th class:hover-event={dataInterface.sortable} class="left-pad" on:click={()=> { if(!dataInterface.sortable) return; changeSortBy(keyName)}}>
                         <span class="left-pad">{config[keyName] && config[keyName].alias ? config[keyName].alias : keyName}</span>
                         {#if sortBy == keyName}
                             <img class='inline-icon' alt="" src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
@@ -626,16 +935,17 @@
 
         <!-- DATA BODY -->
         <tbody>
+            {#if sortedData}
             {#if sortedData.length > 0}
                 {#each sortedData as row, index}
                     <tr class:selected={ selectedRows[index] == true }>
-                        {#if !hideDeleteButton && !hideCheckboxes}
+                        {#if !controls.hideCheckboxes}
                             <td class="hover-event checkbox-td" on:click={()=> { selectedRows[index] = !selectedRows[index] }}>
                                 <input bind:checked={selectedRows[index]} type='checkbox'>
                             </td>
                         {/if}
                         {#if mode == "arrObjs"}
-                            {#each keyStructure as keyName}
+                            {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
                                 <DataTableValue config={config[keyName]} bind:value={row[keyName]} {row} {keyName} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: keyName, row, index: row.hmkIndex})}/>
                             {/each}
                         {:else if mode == "arr"}
@@ -647,65 +957,13 @@
                 {/each}
             {:else}
                 <tr>
-                    {#if !hideDeleteButton && !hideCheckboxes}
+                    {#if !controls.hideDeleteButton && !controls.hideCheckboxes}
                         <td></td>
                     {/if}
-                    <td colspan={keyStructure.length} class='padLeft'>{noDataNote}</td>
+                    <td colspan={keyStructure.length} class='padLeft'>{dataInterface.noDataNote}</td>
                 </tr>
             {/if}
-
-            <!-- CONTROL ROW -->
-            <tr class="controls">
-                <td colspan={keyStructure.length + 1}>
-                <div class='controlrow'>
-                    {#if maxResultsPerPage != 0 && maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-                        <img class='page-arrow' class:disabled={searchValue != ""} alt='back one page' on:click={backOnePage} src='/icons/datatable/left-arrow.svg'>
-                    {/if}
-                    {#if !displayOnly && !hideControls && searchFields && Array.isArray(searchFields) && searchFields.length}
-                        <input type="text" placeholder="Search" bind:value={searchValue}>
-                    {:else}
-                        <div></div>
-                    {/if}
-                    {#if maxResultsPerPage != 0 && maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-                        <div class="px-1">
-                            {#if !searchValue}
-                                Page { Math.ceil(currentRecordOffset / maxResultsPerPage) + 1 }/{ Math.ceil((mode == "obj" ? Object.keys(tableData).length : tableData.length)/maxResultsPerPage) }
-                            {:else}
-                                Results
-                            {/if}
-                        </div>
-                    {/if}
-                    <div class='sortby-dropdown' class:shown={tableTooBig && responsiveType == "stack"}>
-                        <select id='sortBy' bind:value={sortBy}>
-                            <option value="" selected='selected'>None</option>
-                            {#each keyStructure as keyName}
-                                <option value="{keyName}">{keyName}</option>
-                            {/each}
-                        </select>
-                        <img alt="" class='icon-withbg' src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
-                    </div>
-                    {#if !hideControls}
-                        <div class='tableActions'>
-                            {#if !hideAddButton}
-                                <img class='hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
-                            {/if}
-                            {#if !hideDeleteButton}
-                                <img class='deleter' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
-                            {/if}
-                            {#if mode == "arrObjs" && !hideFilterButton}
-                                <span class='filterspan' on:click={ ()=> { filterModalOpen = true }}>
-                                    <img class='hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
-                                    {#if filters.length > 0} <span class='filterlength'>{ filters.length }</span> {/if}
-                                </span>
-                            {/if}
-                        </div>
-                    {/if}
-                    {#if maxResultsPerPage != 0 && maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-                        <img class='page-arrow' class:disabled={searchValue != ""} alt='forward one page' on:click={forwardOnePage} src='/icons/datatable/right-arrow.svg'>    
-                    {/if}
-                </div>
-                </td>
-            </tr>
+            {/if}
         </tbody>
     </table>
 </div>
@@ -748,7 +1006,7 @@
             {#each filters as filter, index}
                 <div class='filter'>
                     <select bind:value={filter.key}>
-                        {#each keyStructure as keyOption, index}
+                        {#each keyStructure.filter(key => config[key].enabled !== false) as keyOption, index}
                             {#if !noFilterFields.includes(keyOption)}
                                 <option value="{keyOption}">{config[keyOption].alias ? config[keyOption].alias : keyOption}</option>
                             {/if}
@@ -771,5 +1029,47 @@
                 <button on:click={()=> {closeFilters() }}>OK</button>
             </div>
         </div>
+    </Modal>
+{/if}
+
+{#if columnsModalOpen}
+    <Modal fullwidth={true} heading="Select Columns" closable={false}>
+        {console.log("Modal is rendering")}
+        <p>Select which columns appear on this table.</p>
+        
+        {#each column_categories as category}
+            <h3>
+                <input id={category} type="checkbox" disabled={category == "Required"} checked={(()=> {
+                        if(category == "Required") return true
+                        let keys = Object.keys(config).filter(x=> config[x].category == category)
+                        let checked = 0
+                        for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
+                        if(checked == keys.length) return true
+                        return false
+                    })()}
+                    on:change={()=> {
+                        let keys = Object.keys(config).filter(x=> config[x].category == category)
+                        let checked = 0
+                        for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
+
+                        if(checked == keys.length)
+                            for(let i=0; i < keys.length; i++) config[keys[i]].enabled = false
+                        else
+                            for(let i=0; i < keys.length; i++) config[keys[i]].enabled = true
+                    }}
+                >
+                <label for={category}>{category}</label>
+            </h3>
+            <div class="column-picker-section">
+                {#each Object.keys(config).filter(x=> config[x].category == category) as key}
+                    <div>
+                        <input id={"check-"+category+"-"+key} type="checkbox" disabled={config[key].category == "Required"} bind:checked={config[key].enabled}>
+                        <label class:disabled={config[key].category == "Required"} for={"check-"+category+"-"+key}>{config[key].Alias ? config[key].Alias : key}</label>
+                    </div>
+                {/each}
+            </div>
+        {/each}
+
+        <div class="centered mt-2"><button on:click={()=>{ columnsModalOpen = false; dispatch("changedColumns"); reSort() }}>OK</button></div>
     </Modal>
 {/if}
