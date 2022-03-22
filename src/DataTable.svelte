@@ -50,6 +50,7 @@
         hideFilterButton: false,
         hideCheckboxes: false,
         overrideAddModal: false,
+        overrideFilterModal: false,
         overrideDeleteModal: false,
         overrideColumnsModal: false,
         customMenu: false
@@ -59,19 +60,14 @@
         strResults: "",
     }
 
-    export function chooseColumns() {
-        console.log("FIRING")
-        if(!controls.overrideColumnsModal) {
-            columnsModalOpen = true
-        }
-        dispatch("chooseColumns")
-    }
-
-    $: console.log(exports.chooseColumns)
+    export let columnsModalOpen = false
+    export let row_class = []
 
     export let diagnostics = {
         logStages: false
     } 
+
+    export let customButtons = []
 
     let keyStructure = []
     let searchFields = []
@@ -104,7 +100,6 @@
         header: "No message",
         message: "No message was sent"
     }
-    let columnsModalOpen = false
     let propAddModalOpen = false
     let newPropVal
     let mode
@@ -117,7 +112,7 @@
     //Watch
     // $: sourceData, handleTableDataChange()
     $: tableData, reSort("table data change")
-    $: processing, reInitializeTable()
+    $: processing || sourceData, reInitializeTable()
     $: searchValue, searchChange()
     $: topcheckboxChecked, selectAllRows()
     $: selectedRows, calcSelectedRows()
@@ -401,6 +396,7 @@
                     else if(row[key] && typeof row[key] != "string" && Object.keys(row[key]).length > 0) {
                         newRow[key] = "Object (" + Object.keys(row[key]).length + " properties)"
                     }
+
                     //Change values of selects with aliases
                     else if(config[key] && config[key].editable && config[key].editable.type == "select" && config[key].editable.options) {
                         let replacement = config[key].editable.options.find(o=> {
@@ -411,7 +407,18 @@
 
                         newRow[key] = replacement
                     }
-                    else newRow[key] = row[key]
+                    else {
+                        //Handle HTML
+                        let val = row[key]
+                        if(config[key].html) {
+                            //Create element to get innerText
+                            let div = document.createElement("div")
+                            div.innerHTML = row[key]
+                            val = div.innerText
+                        }
+
+                        newRow[key] = val
+                    }
                 }
 
                 return newRow
@@ -436,36 +443,103 @@
 
             //Run tests for each filter
             filters.forEach(filter => {
-                tempData = tempData.filter(row => {
-                    let test = true
-                    let rowData, filterData
+                //Set filter type
+                let filterData
+                let type = "string"
 
-                    //Account for data type
-                    if(config[filter.key] && config[filter.key].editable && (config[filter.key].editable.type == 'date' || config[filter.key].type == "date")) {
-                        rowData = new Date(row[filter.key])
+                //If filter.key exists and a type is set on root or editable
+                if(config[filter.key] && config[filter.key].type) {
+                    if(config[filter.key].type == "date") {
+                        type = "date"
                         filterData = new Date(filter.value)
+                        filterData.setMinutes(filterData.getMinutes() + filterData.getTimezoneOffset())
+                    }
+                    else if(config[filter.key].type == "datetime") {
+                        type = "datetime"
+                        filterData = new Date(filter.value)
+                        filterData.setMinutes(filterData.getMinutes() + filterData.getTimezoneOffset())
+                    }
+                    else if(config[filter.key].type == "number" || config[filter.key].type == "float") {
+                        type = "number"
+                        filterData = parseFloat(filter.value)
                     }
                     else {
-                        rowData = row[filter.key]
                         filterData = filter.value
                     }
+                }
+                else {
+                    filterData = filter.value
+                }
 
+                tempData = tempData.filter(row => {
+                    let test = true
+                    let rowData
+
+                    //Account for HTML formatting
+                    let rowFilterKey = row[filter.key]
+                    if(config[filter.key].html) {
+                        //Create element to get innerText
+                        let div = document.createElement("div")
+                        div.innerHTML = row[filter.key].trim()
+                        rowFilterKey = div.innerText
+                    }
+
+                    //Account for datatypes
+                    if(type == "date") rowData = new Date(rowFilterKey)
+                    else if(type == "datetime") rowData = new Date(rowFilterKey)
+                    else if(type == "number") rowData = parseFloat(rowFilterKey)
+                    else rowData = rowFilterKey
+
+                    //Filters
                     if(filter.comparison == "=") {
-                        if(rowData instanceof Date)
+                        if(type == "date") {
+                            let rowNoTime = new Date(rowData.getFullYear(), rowData.getMonth(), rowData.getDate())
+                            let filterNoTime = new Date(filterData.getFullYear(), filterData.getMonth(), filterData.getDate())
+                            test = rowNoTime.getTime() == filterNoTime.getTime()
+                        }
+                        else if(type == "datetime")
                             test = rowData.getTime() == filterData.getTime()
-                        else
+                        else if(type == "number")
+                            test = parseFloat(rowData) == parseFloat(filterData)
+                        else {
                             test = rowData == filterData
+                        }
                     } 
                     if(filter.comparison == "<>") {
-                        if(rowData instanceof Date)
+                        if(type == "date") {
+                            let rowNoTime = new Date(rowData.getFullYear(), rowData.getMonth(), rowData.getDate())
+                            let filterNoTime = new Date(filterData.getFullYear(), filterData.getMonth(), filterData.getDate())
+                            test = rowNoTime.getTime() != filterNoTime.getTime()
+                            console.log(`row: ${rowNoTime.getTime()} =? filter: ${filterNoTime.getTime()} --> ${test}`)
+                        }
+                        else if(type == "datetime")
                             test = rowData.getTime() != filterData.getTime()
+                        else if(type == "number")
+                            test = parseFloat(rowData) != parseFloat(filterData)
                         else
                             test = rowData != filterData
                     }
-                    if(filter.comparison == ">")
-                        test = rowData > filterData
-                    if(filter.comparison == "<")
-                        test = rowData < filterData
+                    if(filter.comparison == ">") {
+                        if(type == "date") {
+                            let endOfDay = new Date(filterData.getTime() + ((1000 * 60 * 60 * 24) - 1))
+                            test = rowData.getTime() > endOfDay.getTime()
+                        }
+                        else if(type == "datetime")
+                            test = rowData.getTime() > filterData.getTime()
+                        else if(type == "number") {
+                            test = parseFloat(rowData) > parseFloat(filterData)
+                        }
+                        else
+                            test = rowData > filterData
+                    }
+                    if(filter.comparison == "<") {
+                        if(type == "date" || type == "datetime")
+                            test = rowData.getTime() < filterData.getTime()
+                        else if(type == "number")
+                            test = parseFloat(rowData) < parseFloat(filterData)
+                        else
+                            test = rowData < filterData
+                    }
                         
                     return test
                 })
@@ -757,6 +831,12 @@
                 bKey = ""
 
             //Check types
+            if(config[key].type) {
+                if(config[key].type == "date" || config[key].type == "datetime") {
+                    aKey = new Date(aKey)
+                    bKey = new Date(bKey)
+                }
+            }
             // if(typeof aKey !== typeof bKey)
             //     return 0
             // else if(!isNaN(aKey)) {
@@ -878,21 +958,24 @@
     </div>
     {#if !controls.hideAll}
         <div class='tableActions'>
+            {#each customButtons as btn}
+                <img class="table_button hoverButton {btn.class}" alt={btn.alt} on:click={dispatch(btn.event)} src={btn.src}>
+            {/each}
             {#if !controls.hideAddButton}
-                <img class='hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
+                <img class='table_button hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
             {/if}
             {#if !controls.hideDeleteButton}
-                <img class='deleter' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
+                <img class='table_button deleter hoverButton' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
             {/if}
             {#if mode == "arrObjs" && !controls.hideFilterButton}
-                <span class='filterspan' on:click={ ()=> { filterModalOpen = true }}>
-                    <img class='hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
+                <span class='filterspan' on:click={ ()=> { if(!controls.overrideFilterModal) filterModalOpen = true; dispatch("filter") }}>
+                    <img class='table_button hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
                     {#if filters.length > 0} <span class='filterlength'>{ filters.length }</span> {/if}
                 </span>
             {/if}
             {#if controls.customMenu}
                 <span class="position-relative">
-                    <img src="/icons/datatable/vertical-menu-dots.svg" alt="table menu" class="customMenu hoverButton" on:click={()=> { customMenuOpen = true }}>
+                    <img src="/icons/datatable/vertical-menu-dots.svg" alt="table menu" class="table_button customMenu hoverButton" on:click={()=> { customMenuOpen = true }}>
                     {#if customMenuOpen}
                         <div class="customMenuBackground" transition:fade={{ duration: 200 }} on:click={()=> { customMenuOpen = false }}></div>
                         <div transition:slide={{duration: 200}} class="customMenuBar" on:click|preventDefault|stopPropagation class:highZ={customMenuOpen}>
@@ -908,6 +991,9 @@
     {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
         <img class='page-arrow' class:disabled={searchValue != ""} alt='forward one page' on:click={forwardOnePage} src='/icons/datatable/right-arrow.svg'>    
     {/if}
+    <div class="full-length">
+        <slot name="under_controls"></slot>
+    </div>
 </div>
 
 <!-- Table-constraining div and table -->
@@ -923,7 +1009,7 @@
                     {/if}
                 {/if}
                 {#each keyStructure.filter(key => config[key].enabled !== false) as keyName, i}
-                    <th class:hover-event={dataInterface.sortable} class="left-pad" on:click={()=> { if(!dataInterface.sortable) return; changeSortBy(keyName)}}>
+                    <th style="width: {config[keyName].width ? config[keyName].width : ""};" class:hover-event={dataInterface.sortable} class="left-pad" on:click={()=> { if(!dataInterface.sortable) return; changeSortBy(keyName)}}>
                         <span class="left-pad">{config[keyName] && config[keyName].alias ? config[keyName].alias : keyName}</span>
                         {#if sortBy == keyName}
                             <img class='inline-icon' alt="" src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
@@ -938,7 +1024,7 @@
             {#if sortedData}
             {#if sortedData.length > 0}
                 {#each sortedData as row, index}
-                    <tr class:selected={ selectedRows[index] == true }>
+                    <tr class:selected={ selectedRows[index] == true } class="{row_class && row_class.map(classes=> classes.index).includes(index) ? row_class.map(classes=> classes.classNames).join(" ") : ""}">
                         {#if !controls.hideCheckboxes}
                             <td class="hover-event checkbox-td" on:click={()=> { selectedRows[index] = !selectedRows[index] }}>
                                 <input bind:checked={selectedRows[index]} type='checkbox'>
@@ -946,7 +1032,7 @@
                         {/if}
                         {#if mode == "arrObjs"}
                             {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
-                                <DataTableValue config={config[keyName]} bind:value={row[keyName]} {row} {keyName} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: keyName, row, index: row.hmkIndex})}/>
+                                <DataTableValue width={config[keyName].width} config={config[keyName]} bind:value={row[keyName]} {row} {keyName} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: keyName, row, index: row.hmkIndex})}/>
                             {/each}
                         {:else if mode == "arr"}
                             <DataTableValue config={config[keyStructure[0]]} bind:value={row.value} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {row: row.value, index: row.hmkIndex})}/>
@@ -1002,13 +1088,13 @@
 <!-- Modal (for filter) -->
 {#if filterModalOpen}
     <Modal heading="Edit filters" closable={false}>
-        <div class="filter-modal">
+        <form class="filter-modal" on:submit|preventDefault={()=> {closeFilters() }}>
             {#each filters as filter, index}
                 <div class='filter'>
                     <select bind:value={filter.key}>
                         {#each keyStructure.filter(key => config[key].enabled !== false) as keyOption, index}
                             {#if !noFilterFields.includes(keyOption)}
-                                <option value="{keyOption}">{config[keyOption].alias ? config[keyOption].alias : keyOption}</option>
+                                <option value="{keyOption}">{config[keyOption].alias ? config[keyOption].alias : keyOption} {#if config[keyOption] && config[keyOption].type}({config[keyOption].type}){:else}(string){/if}</option>
                             {/if}
                         {/each}
                     </select>
@@ -1018,7 +1104,22 @@
                         <option>&gt;</option>
                         <option>&lt;</option>
                     </select>
-                    <input bind:value={filter.value}>
+                    <!-- Filter inputs by type -->
+                    {#if config[filter.key] && config[filter.key].type}
+                        {#if config[filter.key].type == "date"}
+                            <input bind:value={filter.value} type="date">
+                        {:else if  config[filter.key].type == "datetime"}
+                            <input bind:value={filter.value} type="datetime">
+                        {:else if  config[filter.key].type == "number"}
+                            <input bind:value={filter.value} type="number">
+                        {:else if  config[filter.key].type == "float"}
+                            <input bind:value={filter.value} type="number" step=".00001">
+                        {:else}
+                            <input bind:value={filter.value}>
+                        {/if}
+                    {:else}
+                        <input bind:value={filter.value}>
+                    {/if}
                     <img alt='remove filter' class='deleteButton' src='/icons/datatable/delete.svg' on:click={()=> { filters.splice(index,1); filters = filters; }}>
                 </div>
             {/each}
@@ -1026,49 +1127,51 @@
                 <img alt='add filter' class='hoverButton' src='/icons/datatable/add.svg'> Add a filter
             </div>
             <div class='buttonrow'>
-                <button on:click={()=> {closeFilters() }}>OK</button>
+                <button type="submit">OK</button>
             </div>
-        </div>
+        </form>
     </Modal>
 {/if}
 
 {#if columnsModalOpen}
     <Modal fullwidth={true} heading="Select Columns" closable={false}>
-        {console.log("Modal is rendering")}
         <p>Select which columns appear on this table.</p>
         
-        {#each column_categories as category}
-            <h3>
-                <input id={category} type="checkbox" disabled={category == "Required"} checked={(()=> {
-                        if(category == "Required") return true
-                        let keys = Object.keys(config).filter(x=> config[x].category == category)
-                        let checked = 0
-                        for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
-                        if(checked == keys.length) return true
-                        return false
-                    })()}
-                    on:change={()=> {
-                        let keys = Object.keys(config).filter(x=> config[x].category == category)
-                        let checked = 0
-                        for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
-
-                        if(checked == keys.length)
-                            for(let i=0; i < keys.length; i++) config[keys[i]].enabled = false
-                        else
-                            for(let i=0; i < keys.length; i++) config[keys[i]].enabled = true
-                    }}
-                >
-                <label for={category}>{category}</label>
-            </h3>
-            <div class="column-picker-section">
-                {#each Object.keys(config).filter(x=> config[x].category == category) as key}
-                    <div>
-                        <input id={"check-"+category+"-"+key} type="checkbox" disabled={config[key].category == "Required"} bind:checked={config[key].enabled}>
-                        <label class:disabled={config[key].category == "Required"} for={"check-"+category+"-"+key}>{config[key].Alias ? config[key].Alias : key}</label>
+        <div class="column-sections">
+            {#each column_categories as category}
+                <div class="column-subsection">
+                    <h3>
+                        <input id={category} type="checkbox" disabled={category == "Required"} checked={(()=> {
+                                if(category == "Required") return true
+                                let keys = Object.keys(config).filter(x=> config[x].category == category)
+                                let checked = 0
+                                for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
+                                if(checked == keys.length) return true
+                                return false
+                            })()}
+                            on:change={()=> {
+                                let keys = Object.keys(config).filter(x=> config[x].category == category)
+                                let checked = 0
+                                for(let i=0; i < keys.length; i++) if(config[keys[i]].enabled !== false) checked += 1
+                                if(checked == keys.length)
+                                    for(let i=0; i < keys.length; i++) config[keys[i]].enabled = false
+                                else
+                                    for(let i=0; i < keys.length; i++) config[keys[i]].enabled = true
+                            }}
+                        >
+                        <label for={category}>{category}</label>
+                    </h3>
+                    <div class="column-picker-section">
+                        {#each Object.keys(config).filter(x=> config[x].category == category) as key}
+                            <div>
+                                <input id={"check-"+category+"-"+key} type="checkbox" disabled={config[key].category == "Required"} bind:checked={config[key].enabled}>
+                                <label class:disabled={config[key].category == "Required"} for={"check-"+category+"-"+key}>{config[key].Alias ? config[key].Alias : key}</label>
+                            </div>
+                        {/each}
                     </div>
-                {/each}
-            </div>
-        {/each}
+                </div>
+            {/each}
+        </div>
 
         <div class="centered mt-2"><button on:click={()=>{ columnsModalOpen = false; dispatch("changedColumns"); reSort() }}>OK</button></div>
     </Modal>

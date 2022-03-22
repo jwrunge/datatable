@@ -265,3 +265,15 @@ td.hover-event:hover {
         padding: .5em;
     }
 }
+
+.controlrow {
+    flex-wrap: wrap;
+}
+
+.full-length {
+    flex: 0 0 100%;
+}
+
+.table_button {
+    cursor: pointer;
+}

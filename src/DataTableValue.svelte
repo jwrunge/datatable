@@ -6,6 +6,7 @@
     export let config
     export let value
     export let row
+    export let width = null
 
     function isDisabled(determinant, row) {
         if(determinant === true) return true
@@ -67,11 +68,24 @@
 
         return value
     }
+
+    function handle_html(val) {
+        if(config.html) {
+            //Create element to get innerText
+            let div = document.createElement("div")
+            div.innerHTML = val
+            let value = div.innerText
+
+            return value
+        }
+
+        return val
+    }
 </script>
 
 <!-- If the cell contains an editable field and objKey is not set and the value isn't an array or object itself -->
 {#if config && config.editable && (!value || ((value && !Array.isArray(value)) && !(value && typeof value != "string" && Object.keys(value).length != 0))) }
-    <td>
+    <td style="width: {width ? width : ""};">
         <!-- List responsive column name -->
         {#if keyName}
             <span class='only-responsive'>
@@ -101,7 +115,7 @@
     </td>
 <!-- If it's just a display cell -->
 {:else}
-    <td>
+    <td style="width: {width ? width : ""}; white-space: {handle_html(value) && handle_html(value).length > 30 ? "normal" : ""}; min-width: {handle_html(value) && handle_html(value).length > 30 ? "20em" : ""};">
         <!-- List responsive column name -->
         <span class='only-responsive'>
             <strong>{ keyName }: </strong>
