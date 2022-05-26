@@ -1,6 +1,6 @@
 {
   "name": "@jwrunge/datatable",
-  "version": "0.2.30",
+  "version": "0.2.41",
   "description": "A sortable, filterable, searchable, editable data table that can display arrays, maps, and arrays of maps dynamically. Available as a web component or Svelte component.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

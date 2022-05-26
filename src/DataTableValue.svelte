@@ -154,8 +154,13 @@
                 {/if}
             <!-- Value otherwise (if primitive) -->
             {:else if config && config.clickable && value !== null && value !== undefined && config.clickable != "drill"}
-                <!-- svelte-ignore a11y-invalid-attribute -->
-                <a href="" on:click|preventDefault={()=> { dispatch("fieldClick") }}>{ value }</a>
+                {#if config && config.html}
+                    <!-- svelte-ignore a11y-invalid-attribute -->
+                    <a href="" on:click|preventDefault={()=> { dispatch("fieldClick") }}>{ @html value }</a>
+                {:else}
+                    <!-- svelte-ignore a11y-invalid-attribute -->
+                    <a href="" on:click|preventDefault={()=> { dispatch("fieldClick") }}>{ value }</a>
+                {/if}
             {:else if config && config.html}
                 { @html value }
             {:else}

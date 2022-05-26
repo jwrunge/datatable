@@ -1,5 +1,5 @@
 <script>
-    import {onMount, createEventDispatcher, afterUpdate, beforeUpdate} from "svelte"
+    import {onMount, createEventDispatcher, afterUpdate, beforeUpdate, tick} from "svelte"
     import Fuse from "fuse.js"
     import Modal from "./Modal.svelte"
     import DataTableValue from "./DataTableValue.svelte"
@@ -13,6 +13,8 @@
     let setupConfigTimer = null
     let initialLoad = false
     let initialSearch = false
+    let init_awaiting_sort = false
+    let init_awaiting_update = false
 
     //Parameters
     export let sourceData
@@ -53,7 +55,8 @@
         overrideFilterModal: false,
         overrideDeleteModal: false,
         overrideColumnsModal: false,
-        customMenu: false
+        customMenu: false,
+        customAddMenu: false
     }
 
     export let exports = {
@@ -74,6 +77,7 @@
     let noFilterFields = []
     let config = {}
     let customMenuOpen = false
+    let customAddMenuOpen = false
 
     //Refs
     let datatable
@@ -90,7 +94,7 @@
     let sortBy = "none"
     let sortOrder = "asc"
     let searchValue = ""
-    let filters = []
+    export let filters = []
 
     //Modals
     let filterModalOpen = false
@@ -124,8 +128,13 @@
         dispatch("beforeUpdate")
     })
 
-    afterUpdate(()=> {
+    afterUpdate(async ()=> {
         dispatch("afterUpdate")
+        if(init_awaiting_update) {
+            await tick()
+            init_awaiting_update = false
+            dispatch("initialized_and_sorted")
+        }
     })
 
     //Functions
@@ -278,6 +287,8 @@
                         let index = tempData[i].hmkIndex
 
                         //Row and index are used in eval
+                        if(diagnostics.logStages) console.log("Calculating column " + column.colName)
+                        
                         let returnval
                         if(column.value) returnval = column.value
                         else if(column.eval) {
@@ -298,6 +309,36 @@
         return tempData
     }
 
+    //Handle html extraction
+    function handle_html(value, colConfig) {
+        //Account for HTML formatting
+        if(!colConfig.html) return value
+
+        //Create element to get innerText
+        let div = document.createElement("div")
+        div.innerHTML = value.trim()
+
+        //Handle html extraction
+        try {
+            if(colConfig.extract) {
+                try {
+                    let ext = div.querySelector(colConfig.extract)
+                    return ext.innerText
+                }
+                catch(e) {
+                    return div.innerText
+                }
+            }
+            else {
+                return div.innerText
+            }
+        }
+        catch(e) {
+            return value
+        }
+    }
+
+    //Handle sorting
     function reSort(origin = "unknown origin") {
         if(!initialLoad) return
 
@@ -313,7 +354,7 @@
         }, 100)
     }
 
-    function getSortedData() {
+    async function getSortedData() {
         //Sort timer begins from calling function
 
         dispatch("beginsort")
@@ -409,14 +450,7 @@
                     }
                     else {
                         //Handle HTML
-                        let val = row[key]
-                        if(config[key].html) {
-                            //Create element to get innerText
-                            let div = document.createElement("div")
-                            div.innerHTML = row[key]
-                            val = div.innerText
-                        }
-
+                        let val = handle_html(row[key], config[key])
                         newRow[key] = val
                     }
                 }
@@ -476,13 +510,7 @@
                     let rowData
 
                     //Account for HTML formatting
-                    let rowFilterKey = row[filter.key]
-                    if(config[filter.key].html) {
-                        //Create element to get innerText
-                        let div = document.createElement("div")
-                        div.innerHTML = row[filter.key].trim()
-                        rowFilterKey = div.innerText
-                    }
+                    let rowFilterKey = handle_html(row[filter.key], config[filter.key])
 
                     //Account for datatypes
                     if(type == "date") rowData = new Date(rowFilterKey)
@@ -510,7 +538,6 @@
                             let rowNoTime = new Date(rowData.getFullYear(), rowData.getMonth(), rowData.getDate())
                             let filterNoTime = new Date(filterData.getFullYear(), filterData.getMonth(), filterData.getDate())
                             test = rowNoTime.getTime() != filterNoTime.getTime()
-                            console.log(`row: ${rowNoTime.getTime()} =? filter: ${filterNoTime.getTime()} --> ${test}`)
                         }
                         else if(type == "datetime")
                             test = rowData.getTime() != filterData.getTime()
@@ -572,6 +599,12 @@
         
         //Dispatch end of sort
         dispatch("endsort", {sortedData})
+        if(init_awaiting_sort) {
+            await tick()
+            init_awaiting_sort = false
+            init_awaiting_update = true
+            dispatch("initialized_and_sorted")
+        }
 
         if(diagnostics.logStages) {
             console.log("%cEnded - " + Date.now(), "color: lightblue; font-weight: bold; background: blue;")
@@ -661,6 +694,9 @@
 
             tableData.push(newElement)
             tableData = tableData
+        }
+        else {
+            customAddMenuOpen = true
         }
 
         dispatch("addedItem", { row: tableData[tableData.length - 1], index: tableData.length - 1 })
@@ -808,8 +844,8 @@
         }
 
         return function(a, b) {
-            let aKey = a[key]
-            let bKey = b[key]
+            let aKey = handle_html(a[key], config[key])
+            let bKey = handle_html(b[key], config[key])
 
             //Filter out objects and arrays
             if(aKey && typeof aKey != "string" && Array.isArray(aKey)) {
@@ -831,22 +867,32 @@
                 bKey = ""
 
             //Check types
+            console.log(config[key].type)
             if(config[key].type) {
                 if(config[key].type == "date" || config[key].type == "datetime") {
                     aKey = new Date(aKey)
                     bKey = new Date(bKey)
                 }
+                else if(config[key].type == "number") {
+                    aKey = parseInt(aKey)
+                    bKey = parseInt(bKey)
+
+                    if(isNaN(aKey)) aKey = 0
+                    if(isNaN(bKey)) bKey = 0
+                }
+
+                else if(config[key].type == "float") {
+                    console.log("parsing float")
+                    console.log(aKey)
+                    aKey = parseFloat(aKey)
+                    bKey = parseFloat(bKey)
+
+                    if(isNaN(aKey)) aKey = 0
+                    if(isNaN(bKey)) bKey = 0
+
+                    console.log(aKey)
+                }
             }
-            // if(typeof aKey !== typeof bKey)
-            //     return 0
-            // else if(!isNaN(aKey)) {
-            //     aKey = parseFloat(aKey)
-            //     bKey = parseFloat(bKey)
-            // }
-            // else if(typeof aKey === 'string') {
-            //     aKey = aKey.toLowerCase()
-            //     bKey = bKey.toLowerCase()
-            // }
 
             //Sort
             let sortOrder = 1
@@ -901,6 +947,20 @@
         dispatch("customMenuClick", {indices, menuoption: e.target.dataset.menuoption, tableData, sortedData})
     }
 
+    function handleCustomAddMenuClick(e) {
+        if(e.target.dataset.preventdefault) e.preventDefault()
+        customAddMenuOpen = false
+
+        //Return indices
+        let indices = []
+        sortedData.forEach((row, index)=> {
+            if(selectedRows[index])
+                indices.push(row.hmkIndex)
+        })
+
+        dispatch("customAddMenuClick", {indices, menuoption: e.target.dataset.menuoption, tableData, sortedData})
+    }
+
     function reInitializeTable() {
         //Set up data (overwrite with user preferences)
         meta = {...meta, ...metadata}
@@ -918,6 +978,7 @@
         resetComponent()
 
         dispatch("initialized", {tableData})
+        init_awaiting_sort = true
     }
 
     onMount(()=> {
@@ -925,133 +986,143 @@
     })
 </script>
 
-<!-- Control row -->
-<div class='controlrow'>
-    {#if meta.tableHeadHtml}
-        {@html meta.tableHeadHtml}
-    {/if}
-    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-        <img class='page-arrow' class:disabled={searchValue != ""} alt='back one page' on:click={backOnePage} src='/icons/datatable/left-arrow.svg'>
-    {/if}
-    {#if !meta.displayOnly && !controls.hideAll && searchFields && Array.isArray(searchFields) && searchFields.length}
-        <input type="text" placeholder="Search" bind:value={searchValue}>
-    {:else}
-        <div></div>
-    {/if}
-    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-        <div class="px-1">
-            {#if !searchValue}
-                Page { Math.ceil(currentRecordOffset / meta.maxResultsPerPage) + 1 }/{ Math.ceil((mode == "obj" ? Object.keys(tableData).length : tableData.length)/meta.maxResultsPerPage) }
-            {:else}
-                Results
-            {/if}
+<div class="datatable">
+    <!-- Control row -->
+    <div class='controlrow'>
+        {#if meta.tableHeadHtml}
+            {@html meta.tableHeadHtml}
+        {/if}
+        {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+            <img class='page-arrow' class:disabled={searchValue != ""} alt='back one page' on:click={backOnePage} src='/icons/datatable/left-arrow.svg'>
+        {/if}
+        {#if !meta.displayOnly && !controls.hideAll && searchFields && Array.isArray(searchFields) && searchFields.length}
+            <input type="text" placeholder="Search" bind:value={searchValue}>
+        {:else}
+            <div></div>
+        {/if}
+        {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+            <div class="px-1">
+                {#if !searchValue}
+                    Page { Math.ceil(currentRecordOffset / meta.maxResultsPerPage) + 1 }/{ Math.ceil((mode == "obj" ? Object.keys(tableData).length : tableData.length)/meta.maxResultsPerPage) }
+                {:else}
+                    Results
+                {/if}
+            </div>
+        {/if}
+        <div class='sortby-dropdown' class:shown={tableTooBig && meta.responsiveType == "stack"}>
+            <select id='sortBy' bind:value={sortBy}>
+                <option value="" selected='selected'>None</option>
+                {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
+                    <option value="{keyName}">{keyName}</option>
+                {/each}
+            </select>
+            <img alt="" class='icon-withbg' src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
         </div>
-    {/if}
-    <div class='sortby-dropdown' class:shown={tableTooBig && meta.responsiveType == "stack"}>
-        <select id='sortBy' bind:value={sortBy}>
-            <option value="" selected='selected'>None</option>
-            {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
-                <option value="{keyName}">{keyName}</option>
-            {/each}
-        </select>
-        <img alt="" class='icon-withbg' src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
-    </div>
-    {#if !controls.hideAll}
-        <div class='tableActions'>
-            {#each customButtons as btn}
-                <img class="table_button hoverButton {btn.class}" alt={btn.alt} on:click={dispatch(btn.event)} src={btn.src}>
-            {/each}
-            {#if !controls.hideAddButton}
-                <img class='table_button hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
-            {/if}
-            {#if !controls.hideDeleteButton}
-                <img class='table_button deleter hoverButton' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
-            {/if}
-            {#if mode == "arrObjs" && !controls.hideFilterButton}
-                <span class='filterspan' on:click={ ()=> { if(!controls.overrideFilterModal) filterModalOpen = true; dispatch("filter") }}>
-                    <img class='table_button hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
-                    {#if filters.length > 0} <span class='filterlength'>{ filters.length }</span> {/if}
-                </span>
-            {/if}
-            {#if controls.customMenu}
-                <span class="position-relative">
-                    <img src="/icons/datatable/vertical-menu-dots.svg" alt="table menu" class="table_button customMenu hoverButton" on:click={()=> { customMenuOpen = true }}>
-                    {#if customMenuOpen}
-                        <div class="customMenuBackground" transition:fade={{ duration: 200 }} on:click={()=> { customMenuOpen = false }}></div>
-                        <div transition:slide={{duration: 200}} class="customMenuBar" on:click|preventDefault|stopPropagation class:highZ={customMenuOpen}>
-                            {#each controls.customMenu as opt}
-                                <a href={opt.href || opt.display} class:disabled={opt.disabled} on:click={handleCustomMenuClick} data-menuoption={opt.display} data-preventdefault={opt.preventDefault || false}>{opt.display}</a>
+        {#if !controls.hideAll}
+            <div class='tableActions'>
+                {#each customButtons as btn}
+                    <img class="table_button hoverButton {btn.class}" alt={btn.alt} on:click={dispatch(btn.event)} src={btn.src}>
+                {/each}
+                {#if !controls.hideAddButton}
+                    <img class='table_button hoverButton' alt='add row' on:click={addElement} src='/icons/datatable/add.svg'>
+                    {#if customAddMenuOpen}
+                        <div class="customMenuBackground" transition:fade={{ duration: 200 }} on:click={()=> { customAddMenuOpen = false }}></div>
+                        <div transition:slide={{duration: 200}} class="customMenuBar" on:click|preventDefault|stopPropagation class:highZ={customAddMenuOpen}>
+                            {#each controls.customAddMenu as opt}
+                                <a href={opt.href || opt.display} class:disabled={opt.disabled} on:click={handleCustomAddMenuClick} data-menuoption={opt.display} data-preventdefault={opt.preventDefault || false}>{opt.display}</a>
                             {/each}
                         </div>
                     {/if}
-                </span>
-            {/if}
-        </div>
-    {/if}
-    {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
-        <img class='page-arrow' class:disabled={searchValue != ""} alt='forward one page' on:click={forwardOnePage} src='/icons/datatable/right-arrow.svg'>    
-    {/if}
-    <div class="full-length">
-        <slot name="under_controls"></slot>
-    </div>
-</div>
-
-<!-- Table-constraining div and table -->
-<div class='constrain-table' class:limitHeight={meta.limitHeight} style="max-height: {meta.maxHeight}" class:scroll={ meta.responsiveType == 'scroll' }>
-    <table this={datatable} class:stack={meta.responsiveType == 'stack'} class:tooBig={ tableTooBig } style="width: {meta.tableWidth}; min-width: {meta.tableMinWidth}; max-width: {meta.tableMaxWidth};">
-        <thead>
-            <tr>
-                {#if !controls.hideCheckboxes}
-                    {#if sortedData && sortedData.length > 0}
-                        <th class="hover-event checkbox-td" on:click={()=>{ topcheckboxChecked = !topcheckboxChecked }}><input type='checkbox' bind:checked={topcheckboxChecked}></th>
-                    {:else}
-                        <th class="checkbox-td"></th>
-                    {/if}
                 {/if}
-                {#each keyStructure.filter(key => config[key].enabled !== false) as keyName, i}
-                    <th style="width: {config[keyName].width ? config[keyName].width : ""};" class:hover-event={dataInterface.sortable} class="left-pad" on:click={()=> { if(!dataInterface.sortable) return; changeSortBy(keyName)}}>
-                        <span class="left-pad">{config[keyName] && config[keyName].alias ? config[keyName].alias : keyName}</span>
-                        {#if sortBy == keyName}
-                            <img class='inline-icon' alt="" src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
+                {#if !controls.hideDeleteButton}
+                    <img class='table_button deleter hoverButton' class:hoverButton={ selectedRows.includes(true) } alt='delete rows' on:click={openDeleteModal} src='/icons/datatable/delete.svg'>
+                {/if}
+                {#if mode == "arrObjs" && !controls.hideFilterButton}
+                    <span class='filterspan' on:click={ ()=> { if(!controls.overrideFilterModal) filterModalOpen = true; dispatch("filter") }}>
+                        <img class='table_button hoverButton' alt='filter' src='/icons/datatable/filter.svg'>
+                        {#if filters.length > 0} <span class='filterlength'>{ filters.length }</span> {/if}
+                    </span>
+                {/if}
+                {#if controls.customMenu}
+                    <span class="position-relative">
+                        <img src="/icons/datatable/vertical-menu-dots.svg" alt="table menu" class="table_button customMenu hoverButton" on:click={()=> { customMenuOpen = true }}>
+                        {#if customMenuOpen}
+                            <div class="customMenuBackground" transition:fade={{ duration: 200 }} on:click={()=> { customMenuOpen = false }}></div>
+                            <div transition:slide={{duration: 200}} class="customMenuBar" on:click|preventDefault|stopPropagation class:highZ={customMenuOpen}>
+                                {#each controls.customMenu as opt}
+                                    <a href={opt.href || opt.display} class:disabled={opt.disabled} on:click={handleCustomMenuClick} data-menuoption={opt.display} data-preventdefault={opt.preventDefault || false}>{opt.display}</a>
+                                {/each}
+                            </div>
                         {/if}
-                    </th>
-                {/each}
-            </tr>
-        </thead>
-
-        <!-- DATA BODY -->
-        <tbody>
-            {#if sortedData}
-            {#if sortedData.length > 0}
-                {#each sortedData as row, index}
-                    <tr class:selected={ selectedRows[index] == true } class="{row_class && row_class.map(classes=> classes.index).includes(index) ? row_class.map(classes=> classes.classNames).join(" ") : ""}">
-                        {#if !controls.hideCheckboxes}
-                            <td class="hover-event checkbox-td" on:click={()=> { selectedRows[index] = !selectedRows[index] }}>
-                                <input bind:checked={selectedRows[index]} type='checkbox'>
-                            </td>
-                        {/if}
-                        {#if mode == "arrObjs"}
-                            {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
-                                <DataTableValue width={config[keyName].width} config={config[keyName]} bind:value={row[keyName]} {row} {keyName} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: keyName, row, index: row.hmkIndex})}/>
-                            {/each}
-                        {:else if mode == "arr"}
-                            <DataTableValue config={config[keyStructure[0]]} bind:value={row.value} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {row: row.value, index: row.hmkIndex})}/>
-                        {:else if mode == "obj"}
-                            <DataTableValue config={config[keyStructure[0]]} bind:objKey={row.key} bind:value={row.value} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: row.key, row: row.value})}/>
-                        {/if}
-                    </tr>
-                {/each}
-            {:else}
+                    </span>
+                {/if}
+            </div>
+        {/if}
+        {#if meta.maxResultsPerPage != 0 && meta.maxResultsPerPage < (mode == "obj" ? Object.keys(tableData).length : tableData.length)}
+            <img class='page-arrow' class:disabled={searchValue != ""} alt='forward one page' on:click={forwardOnePage} src='/icons/datatable/right-arrow.svg'>
+        {/if}
+        <div class="full-length">
+            <slot name="under_controls"></slot>
+        </div>
+    </div>
+    
+    <!-- Table-constraining div and table -->
+    <div class='constrain-table' class:limitHeight={meta.limitHeight} style="max-height: {meta.maxHeight}" class:scroll={ meta.responsiveType == 'scroll' }>
+        <table this={datatable} class:stack={meta.responsiveType == 'stack'} class:tooBig={ tableTooBig } style="width: {meta.tableWidth}; min-width: {meta.tableMinWidth}; max-width: {meta.tableMaxWidth};">
+            <thead>
                 <tr>
-                    {#if !controls.hideDeleteButton && !controls.hideCheckboxes}
-                        <td></td>
+                    {#if !controls.hideCheckboxes}
+                        {#if sortedData && sortedData.length > 0}
+                            <th class="hover-event checkbox-td" on:click={()=>{ topcheckboxChecked = !topcheckboxChecked }}><input type='checkbox' bind:checked={topcheckboxChecked}></th>
+                        {:else}
+                            <th class="checkbox-td"></th>
+                        {/if}
                     {/if}
-                    <td colspan={keyStructure.length} class='padLeft'>{dataInterface.noDataNote}</td>
+                    {#each keyStructure.filter(key => config[key].enabled !== false) as keyName, i}
+                        <th style="width: {config[keyName].width ? config[keyName].width : ""};" class:hover-event={dataInterface.sortable} class="left-pad" on:click={()=> { if(!dataInterface.sortable) return; changeSortBy(keyName)}}>
+                            <span class="left-pad">{config[keyName] && config[keyName].alias ? config[keyName].alias : keyName}</span>
+                            {#if sortBy == keyName}
+                                <img class='inline-icon' alt="" src={ sortOrder == "asc" ? "/icons/datatable/sort-asc.svg" : "/icons/datatable/sort-desc.svg" }>
+                            {/if}
+                        </th>
+                    {/each}
                 </tr>
-            {/if}
-            {/if}
-        </tbody>
-    </table>
+            </thead>
+    
+            <!-- DATA BODY -->
+            <tbody>
+                {#if sortedData}
+                {#if sortedData.length > 0}
+                    {#each sortedData as row, index}
+                        <tr class:selected={ selectedRows[index] == true } class="{row_class && row_class.map(classes=> classes.index).includes(index) ? row_class.map(classes=> classes.classNames).join(" ") : ""}">
+                            {#if !controls.hideCheckboxes}
+                                <td class="hover-event checkbox-td" on:click={()=> { selectedRows[index] = !selectedRows[index] }}>
+                                    <input bind:checked={selectedRows[index]} type='checkbox'>
+                                </td>
+                            {/if}
+                            {#if mode == "arrObjs"}
+                                {#each keyStructure.filter(key => config[key].enabled !== false) as keyName}
+                                    <DataTableValue width={config[keyName].width} config={config[keyName]} bind:value={row[keyName]} {row} {keyName} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: keyName, row, index: row.hmkIndex})}/>
+                                {/each}
+                            {:else if mode == "arr"}
+                                <DataTableValue config={config[keyStructure[0]]} bind:value={row.value} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {row: row.value, index: row.hmkIndex})}/>
+                            {:else if mode == "obj"}
+                                <DataTableValue config={config[keyStructure[0]]} bind:objKey={row.key} bind:value={row.value} on:updated={()=>{ updateSource(row) }} on:fieldClick={dispatch("fieldClick", {field: row.key, row: row.value})}/>
+                            {/if}
+                        </tr>
+                    {/each}
+                {:else}
+                    <tr>
+                        {#if !controls.hideDeleteButton && !controls.hideCheckboxes}
+                            <td></td>
+                        {/if}
+                        <td colspan={keyStructure.length} class='padLeft'>{dataInterface.noDataNote}</td>
+                    </tr>
+                {/if}
+                {/if}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- Modal (for deletes) -->
@@ -1114,6 +1185,12 @@
                             <input bind:value={filter.value} type="number">
                         {:else if  config[filter.key].type == "float"}
                             <input bind:value={filter.value} type="number" step=".00001">
+                        {:else if config[filter.key].type == "select"}
+                            <select bind:value={filter.value}>
+                                {#each config[filter.key].selectOptions as op}
+                                    <option value={op.value}>{op.text}</option>
+                                {/each}
+                            </select>
                         {:else}
                             <input bind:value={filter.value}>
                         {/if}
@@ -1134,7 +1211,7 @@
 {/if}
 
 {#if columnsModalOpen}
-    <Modal fullwidth={true} heading="Select Columns" closable={false}>
+    <Modal fullwidth={true} heading="Select Columns" closable={true} on:close={()=>{ columnsModalOpen = false; dispatch("changedColumns", config); reSort() }}>
         <p>Select which columns appear on this table.</p>
         
         <div class="column-sections">
@@ -1165,7 +1242,7 @@
                         {#each Object.keys(config).filter(x=> config[x].category == category) as key}
                             <div>
                                 <input id={"check-"+category+"-"+key} type="checkbox" disabled={config[key].category == "Required"} bind:checked={config[key].enabled}>
-                                <label class:disabled={config[key].category == "Required"} for={"check-"+category+"-"+key}>{config[key].Alias ? config[key].Alias : key}</label>
+                                <label class:disabled={config[key].category == "Required"} for={"check-"+category+"-"+key}>{config[key].alias ? config[key].alias : key}</label>
                             </div>
                         {/each}
                     </div>
@@ -1173,6 +1250,6 @@
             {/each}
         </div>
 
-        <div class="centered mt-2"><button on:click={()=>{ columnsModalOpen = false; dispatch("changedColumns"); reSort() }}>OK</button></div>
+        <div class="centered mt-2 bottom-button"><button on:click={()=>{ columnsModalOpen = false; dispatch("changedColumns", config); reSort() }}>OK</button></div>
     </Modal>
 {/if}

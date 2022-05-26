@@ -277,3 +277,12 @@ td.hover-event:hover {
 .table_button {
     cursor: pointer;
 }
+
+.bottom-button {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid gray;
+    padding: 1em;
+    box-sizing: border-box;
+}
