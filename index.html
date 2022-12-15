@@ -1,99 +1,13 @@
-<!doctype html>
-<html>
-<head>
-	<meta charset='utf8'>
-	<meta name='viewport' content='width=device-width'>
-
-	<title>Datatable Test</title>
-
-	<link rel='icon' type='image/png' href='./favicon.png'>
-	<link rel='stylesheet' href='./dist/datatable-style.css'>
-</head>
-
-<body>
-	<h1>Test page</h1>
-	<p>Testing datatable.</p>
-	<div id="table"></div>
-
-	<script src="./dist/index.js"></script>
-	<script type="module">
-		let sourceData = [
-			{
-				name: "Jake",
-				age: 33,
-				profession: "Coder"
-			},
-			{
-				name: "Mary",
-				age: 32,
-				profession: "Pastor"
-			},
-			{
-				name: "Isaac",
-				age: 2,
-				profession: "Kid"
-			},
-			{
-				name: "Elinor",
-				age: 0,
-				profession: "Baby"
-			}
-		]
-
-		for(let i=0; i<1000; i++) {
-			sourceData.push({ 
-				name: "Added " + (i+1),
-				age: (i+1),
-				profession: "Doer of " + (i+1)
-			})
-		}
-
-		let addedColumns = [
-			{colName: "funtimes", func: row=> "Fun " + row.name}
-		]
-
-		let configuration = {
-			"name": {}, "age": {}, "profession": {}, "funtimes": { }
-		}
-
-		const dt = new DataTable({
-			target: document.getElementById("table"),
-			props: {
-				sourceData, overrideDeleteModal: true,
-				interactivity: {
-					customMenu: [
-						{
-							display: "Option 1",
-							preventDefault: true
-						},
-						{
-							display: "Option 2",
-							preventDefault: true
-						},
-					],
-				},
-				diagnostics: {
-					logStages: true
-				},
-				processing: {
-					addedColumns,
-					configuration
-				}				
-			}
-		})
-
-		dt.$on("customMenuClick", (e)=> {
-			addedColumns.push({
-				colName: "Great TIMES!",
-				func: function() {return "Yayz"}
-			})
-			configuration["Great TIMES!"] = true
-
-			dt.$set({processing: {
-				addedColumns,
-				configuration
-			}})
-		})
-	</script>
-</body>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + TS</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
