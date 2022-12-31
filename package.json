@@ -1,14 +1,24 @@
 {
   "name": "datatable",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
+  "svelte": "src/DataTable.svelte",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^2.0.0",
+    "@tsconfig/svelte": "^3.0.0",
+    "@types/luxon": "^3.1.0",
+    "fuse.js": "^6.6.2",
+    "luxon": "^3.1.1",
+    "svelte": "^3.54.0",
+    "svelte-check": "^2.10.0",
+    "tslib": "^2.4.1",
     "typescript": "^4.9.3",
     "vite": "^4.0.0"
   }
