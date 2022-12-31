@@ -379,16 +379,4 @@
         width: 100%;
         height: 100%;
     }
-
-    .row-highlighted {
-        background: yellow;
-    }
-
-    .col-highlighted {
-        background: rgb(255, 255, 198);
-    }
-
-    .row-highlighted.col-highlighted {
-        background: orange;
-    }
 </style>

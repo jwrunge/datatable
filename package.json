@@ -1,7 +1,7 @@
 {
-  "name": "datatable",
-  "private": true,
-  "version": "0.0.1",
+  "name": "@jwrunge/datatable",
+  "private": false,
+  "version": "0.4.0",
   "type": "module",
   "svelte": "src/DataTable.svelte",
   "scripts": {
