@@ -147,7 +147,7 @@
         }
         tick().then(()=> {
             if(tableEl.offsetWidth < tableContainer.offsetWidth - BUFFER) {
-                let division = (tableContainer.offsetWidth - BUFFER) / columnOrder.length
+                let division = (tableContainer.offsetWidth - BUFFER) / (columnOrder.length || 1)
                 columnWidthOverride = division + "px"
             }
         })
@@ -272,7 +272,7 @@
             {/if}
             
             <!-- The table -->
-            <div class="table" style:grid-template-columns="{config.showCheckboxes ? "2rem " : ""}repeat({columnOrder.length}, minmax(min-content, max-content))"
+            <div class="table" style:grid-template-columns="{config.showCheckboxes ? "2rem " : ""}repeat({columnOrder.length || 1}, minmax(min-content, max-content))"
                 style:min-height={minHeight} style:max-height={maxHeight} style:height={height} bind:this={tableEl}>
 
                 <!-- Column headers -->
@@ -314,7 +314,7 @@
                     {/each}
                 <!-- If no data, show no data note -->
                 {:else}
-                    <div class="col field full-row" style:grid-column="1 / span {columnOrder.length + (config.showCheckboxes ? 1 : 0)}">{config.noDataNote ?? "No data present for this criteria"}</div>
+                    <div class="col field full-row" style:grid-column="1 / span {(columnOrder.length || 1) + (config.showCheckboxes ? 1 : 0)}">{config.noDataNote ?? "No data present for this criteria"}</div>
                 {/if}
             </div>
 

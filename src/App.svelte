@@ -80,7 +80,7 @@
 </script>
 
 <main>
-  <DataTable sourceData={jsondata} {config} searchEntry={search} showPaginationUI={true} paginationShow="results">
+  <DataTable sourceData={[]} config={{columns: {}}} searchEntry={search} showPaginationUI={true} paginationShow="results">
     <div slot="header"><h2>My Table</h2></div>
     <div slot="subheader"><input type="text" bind:value={search}></div>
   </DataTable>
