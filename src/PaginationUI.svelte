@@ -20,7 +20,7 @@
     }
 
     function determinePageIndices(): (number | ". . .")[] {
-        if(!showPageIndices) return
+        if(!showPageIndices) return []
 
         let ret: (number | ". . .")[] = []
 
@@ -87,6 +87,7 @@
 
     .page-arrow {
         cursor: pointer;
+        -webkit-user-select: none;
         user-select: none;
     }
 
