@@ -146,6 +146,7 @@
             columnWidthOverride = "auto"
         }
         tick().then(()=> {
+            if(!tableEl || !tableContainer) return
             if(tableEl.offsetWidth < tableContainer.offsetWidth - BUFFER) {
                 let division = (tableContainer.offsetWidth - BUFFER) / (columnOrder.length || 1)
                 columnWidthOverride = division + "px"
@@ -208,7 +209,6 @@
     function setColRow(col: number, row: number) {
         mouse.col = col
         mouse.row = row
-        console.log(mouse)
     }
 
     //Handle checkbox selections

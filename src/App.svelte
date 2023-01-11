@@ -51,28 +51,28 @@
     maxResultsPerPage: 10,
     columns: {
       Name: {
-        func: row=> row.name
+        func: (row: any)=> row.name
       },
       Profession: {
-        func: row=> row.profession
+        func: (row: any)=> row.profession
       },
       Age: {
-        func: row=> row.age,
+        func: (row: any)=> row.age,
         type: "integer"
       },
       Born: {
-        func: row=> `<em>${row.born}</em>`,
+        func: (row: any)=> `<em>${row.born}</em>`,
         type: "date",
         dateParse: DateTimeFormats.SQL,
         extractHtml: "em"
       },
       Number: {
-        func: row=> `<strong>${row.number}</strong>`,
+        func: (row: any)=> `<strong>${row.number}</strong>`,
         extractHtml: "strong",
         type: "integer"
       },
       Another: {
-        func: row=> row.age * row.number,
+        func: (row: any)=> row.age * row.number,
         type: "integer"
       }
     }

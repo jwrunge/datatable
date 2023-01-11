@@ -4,7 +4,9 @@ export enum DateTimeFormats {
     "ISO",
     "HTTP",
     "RFC2822",
-    "SQL"
+    "SQL",
+    "MILLIS",
+    "SECONDS"
 }
 
 export enum FilterComparisons {

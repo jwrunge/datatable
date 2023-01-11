@@ -26,6 +26,10 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
                 return DateTime.fromHTTP(date)
             case DateTimeFormats.SQL:
                 return DateTime.fromSQL(date)
+            case DateTimeFormats.MILLIS:
+                return DateTime.fromMillis(date)
+            case DateTimeFormats.SECONDS:
+                return DateTime.fromSeconds(date)
             default:
                 return DateTime.fromHTTP(date)
         }
