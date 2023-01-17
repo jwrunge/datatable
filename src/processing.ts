@@ -54,6 +54,7 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
             if(cfg.floatPrecision !== undefined) converted = parseFloat((converted as number).toFixed(cfg.floatPrecision).toString()) as Type
             break
         case "date":
+            console.log(typeof value === "string", cfg.dateParse, typeof value === "string" ? fromDateFormat(cfg.dateParse ?? DateTimeFormats.HTTP, value) : "NOT a string")
             converted = value instanceof Date ? DateTime.fromJSDate(value) as Type :
                         typeof value === "number" ? DateTime.fromMillis(value) as Type : 
                         typeof value === "string" ? fromDateFormat(cfg.dateParse ?? DateTimeFormats.HTTP, value) as Type : 
