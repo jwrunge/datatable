@@ -32,15 +32,14 @@
     export let config: Config = {
         paginate: false,
         columns: {},
-        searchable: null,
+        searchable: undefined,
         noDataNote: "No data available"
     }
     let tableData: any[] = []
     let columnOrder: (keyof Config["columns"])[] = []
 
-    let tableEl
-    let tableContainer
-    let checkboxEl
+    let tableEl: HTMLElement
+    let checkboxEl: HTMLElement
 
     export let searchEntry: string = ""
     let fuseSearch: any
@@ -48,7 +47,7 @@
     let sortByOrder: SortOrder = SortOrder.DEFAULT
 
     //Pagination function (for fetching from the server)
-    export let paginationFunc: Function = null
+    export let paginationFunc: Function | undefined = undefined
     export let paginationShow = "page"
     let unpaginatedResults = 0
 
@@ -63,11 +62,6 @@
     export let totalResults: number = 0
     export let totalResultsOverride: number = 0
     export let filters: Filter[] = []
-
-    //Dimensions
-    export let minHeight: string = "auto"
-    export let maxHeight: string = "98vh"
-    export let height: string = "auto"
 
     //Search, filter, sort, paginate
     async function sfsp() {
@@ -91,9 +85,6 @@
         pageResults = tableData.length
 
         sortedTrigger = !sortedTrigger
-
-        //Resize
-        windowResize()
     }
 
     //Handle source data change
@@ -127,57 +118,22 @@
     //Handle table fill screen
     let columnWidthOverride: string = ""
 
-    const RESIZE_TIMEOUT = 200
-    let windowResizeTimer: NodeJS.Timeout
-    function windowResizeInit() {
-        if(windowResizeTimer) clearTimeout(windowResizeTimer)
-        windowResizeTimer = setTimeout(windowResize, RESIZE_TIMEOUT)
-    }
-
-    function windowResize() {
-        if(!tableEl || !tableContainer) {
-            columnWidthOverride = "auto"
-            return
-        }
-
-        const BUFFER = checkboxEl ? checkboxEl.offsetWidth + 17 : 17   //Pixel buffer to subtract checkbox width and scrollbar width (estimated 17px) and avoid yoyoing
-
-        if(tableEl.scrollWidth >= tableContainer.offsetWidth) {
-            columnWidthOverride = "auto"
-        }
-        tick().then(()=> {
-            if(!tableEl || !tableContainer) return
-            if(tableEl.offsetWidth < tableContainer.offsetWidth - BUFFER) {
-                let division = (tableContainer.offsetWidth - BUFFER) / (columnOrder.length || 1)
-                columnWidthOverride = division + "px"
-            }
-        })
-    }
-
-    onMount(()=> {
-        window.addEventListener("resize", windowResizeInit)
-        windowResize()
-    })
-
-    onDestroy(()=> {
-        window.removeEventListener("resize", windowResizeInit)
-    })
-
-    $: columnOrder, windowResizeInit()
-
     //Handle page change
     async function repaginate() {
         if(!initialLoad) return
 
         //Handle repagination function (for server pulls on page change)
         let newData: any[]
-        if(paginationFunc) newData = await paginationFunc(sourceData)
-        if(newData) {
-            sourceData = newData    //Reactivity will handle new data setup and sfsp
-            return
-        }
+        if(paginationFunc) {
+            newData = await paginationFunc(sourceData)
+        
+            if(newData) {
+                sourceData = newData    //Reactivity will handle new data setup and sfsp
+                return
+            }
 
-        sfsp()
+            sfsp()
+        }
     }
 
     $: page, repaginate()
@@ -206,7 +162,7 @@
         sfsp()
     }
 
-    function setColRow(col: number, row: number) {
+    function setColRow(col: number | undefined, row: number | undefined) {
         mouse.col = col
         mouse.row = row
     }
@@ -258,93 +214,87 @@
     // }
 </script>
 
-<div class={tableClass}>
-    <!-- Table-constraining div and table -->
-    <div class="table-container" bind:this={tableContainer}>
-        <div class="table-wrap">
-            <!-- Header row -->
-            <slot name="header"></slot>
-            <slot name="subheader"></slot>
-
-            <!-- Top pagination UI -->
-            {#if showPaginationUI}
-                <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults}/>
-            {/if}
-            
-            <!-- The table -->
-            <div class="table" style:grid-template-columns="{config.showCheckboxes ? "2rem " : ""}repeat({columnOrder.length || 1}, minmax(min-content, max-content))"
-                style:min-height={minHeight} style:max-height={maxHeight} style:height={height} bind:this={tableEl}>
-
-                <!-- Column headers -->
-                {#if config.showCheckboxes}
-                    <div class="col head checkbox" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === 0} bind:this={checkboxEl} on:mouseenter={()=>setColRow(0,0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
-                {/if}
-                {#each columnOrder as col, idx}
-                    <div class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><span>{col}</span><span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span></div>
-                {/each}
-                <!-- Rows -->
-                {#if tableData.length}
-                    <!-- Each row -->
-                    {#each tableData as row, index}
-                        <!-- Row checkbox -->
-                        {#if config.showCheckboxes}
-                            <div class="col field checkbox" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === 0} class:even-row={index % 2 === 0} on:mouseenter={()=>setColRow(0,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
-                        {/if}
-                        <!-- Each field -->
-                        {#each columnOrder as field, colIdx}
-                            <!-- Set clickable class and click function if onclick is present in config -->
-                            <div class="col field" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} class:clickable={config.columns[field].onclick !== undefined} on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row, e) : ()=> true} on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus>
-                                {#if row[field] !== null && row[field] !== undefined}
-                                    {#if config.columns[field].type === "date" && config.columns[field].dateFormatFunc}
-                                        {#if config.columns[field].html || config.columns[field].extractHtml}
-                                            {@html config.columns[field].dateFormatFunc(row[field])}
-                                        {:else}
-                                            {config.columns[field].dateFormatFunc(row[field])}
-                                        {/if}
-                                    {:else}
-                                        {#if config.columns[field].html || config.columns[field].extractHtml}
-                                            {@html row[field]}
-                                        {:else}
-                                            {row[field]}
-                                        {/if}
-                                    {/if}
-                                {/if}
-                            </div>
-                        {/each}
-                    {/each}
-                <!-- If no data, show no data note -->
-                {:else}
-                    <div class="col field full-row" style:grid-column="1 / span {(columnOrder.length || 1) + (config.showCheckboxes ? 1 : 0)}">{config.noDataNote ?? "No data present for this criteria"}</div>
-                {/if}
-            </div>
-
-            <!-- Bottom pagination UI -->
-            {#if showPaginationUI && tableData.length}
-                <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} showPageIndices={true} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults} sorted={sortedTrigger}/>
-            {/if}
-        </div>
+<div class="{tableClass} table-wrapper">
+    <div class="table-head">
+        <!-- Header row -->
+        <slot name="header"></slot>
+        <slot name="subheader"></slot>
+        <!-- Top pagination UI -->
+        {#if showPaginationUI}
+            <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults}/>
+        {/if}
     </div>
+
+    <!-- The table -->
+    <div class="table" style:grid-template-columns="{config.showCheckboxes ? "2rem " : ""}repeat({columnOrder.length || 1}, minmax(max-content, 1fr))" bind:this={tableEl}>
+        <!-- Column headers -->
+        {#if config.showCheckboxes}
+            <div class="col head checkbox" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === 0} bind:this={checkboxEl} on:mouseenter={()=>setColRow(0,0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
+        {/if}
+        {#each columnOrder as col, idx}
+            <div class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><span>{col}</span><span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span></div>
+        {/each}
+        <!-- Rows -->
+        {#if tableData.length}
+            <!-- Each row -->
+            {#each tableData as row, index}
+                <!-- Row checkbox -->
+                {#if config.showCheckboxes}
+                    <div class="col field checkbox" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === 0} class:even-row={index % 2 === 0} on:mouseenter={()=>setColRow(0,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
+                {/if}
+                <!-- Each field -->
+                {#each columnOrder as field, colIdx}
+                    <!-- Set clickable class and click function if onclick is present in config -->
+                    <div class="col field" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} class:clickable={config.columns[field].onclick !== undefined} on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row, e) : ()=> true} on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus>
+                        {#if row[field] !== null && row[field] !== undefined}
+                            {#if config.columns[field].type === "date" && config.columns[field].dateFormatFunc}
+                                {#if config?.columns[field]?.html || config?.columns[field]?.extractHtml}
+                                    {@html config.columns[field].dateFormatFunc(row[field])}
+                                {:else}
+                                    {config.columns[field].dateFormatFunc(row[field])}
+                                {/if}
+                            {:else}
+                                {#if config.columns[field].html || config.columns[field].extractHtml}
+                                    {@html row[field]}
+                                {:else}
+                                    {row[field]}
+                                {/if}
+                            {/if}
+                        {/if}
+                    </div>
+                {/each}
+            {/each}
+        <!-- If no data, show no data note -->
+        {:else}
+            <div class="col field full-row" style:grid-column="1 / span {(columnOrder.length || 1) + (config.showCheckboxes ? 1 : 0)}">{config.noDataNote ?? "No data present for this criteria"}</div>
+        {/if}
+    </div>
+
+    <!-- Bottom pagination UI -->
+    {#if showPaginationUI && tableData.length}
+        <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} showPageIndices={true} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults} sorted={sortedTrigger}/>
+    {/if}
 </div>
 
 <style>
-    .table-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .table-wrap {
-        overflow: hidden;
+    .table-wrapper {
+        display: grid;
+        grid-template-rows: max-content 1fr;
+        grid-template-columns: 1fr;
     }
 
     .table {
         display: grid;
+        grid-auto-rows: max-content;
         position: relative;
         align-items: center;
+        justify-content: stretch;
         box-sizing: border-box;
         background: white;
         overflow-x: auto;
         overflow-y: auto;
+        width: 100%;
+        height: 100%;
     }
 
     .col.checkbox {
