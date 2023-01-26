@@ -119,7 +119,7 @@
     let columnWidthOverride: string = ""
 
     //Handle page change
-    async function repaginate() {
+    async function repaginate(_: number) {
         if(!initialLoad) return
 
         //Handle repagination function (for server pulls on page change)
@@ -134,9 +134,10 @@
 
             sfsp()
         }
+        else sfsp()
     }
 
-    $: page, repaginate()
+    $: repaginate(page)
 
     //Handle header click (sort)
     function handleHeaderClick(key: string | number) {
