@@ -220,9 +220,9 @@
         <slot name="header"></slot>
         <slot name="subheader"></slot>
         <!-- Top pagination UI -->
-        {#if showPaginationUI}
+        <!-- {#if showPaginationUI}
             <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults}/>
-        {/if}
+        {/if} -->
     </div>
 
     <!-- The table -->
