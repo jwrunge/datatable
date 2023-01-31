@@ -35,6 +35,7 @@ export interface Column {
     html?: boolean
     extractHtml?: string | null
     onclick?: Function
+    category?: string
 }
 
 export interface AddColumn extends Column {
