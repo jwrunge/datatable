@@ -4,6 +4,9 @@
     import { loadData, setupSearch, search, sortBy, filter, paginate, SortOrder } from "./processing"
     import { onMount, onDestroy } from "svelte"
     import PaginationUi from "./PaginationUI.svelte"
+    import { createEventDispatcher } from "svelte"
+
+    const dispatch = createEventDispatcher()
 
     //State data
     let initialLoad = false
@@ -85,6 +88,8 @@
         pageResults = tableData.length
 
         sortedTrigger = !sortedTrigger
+
+        dispatch("sorted")
     }
 
     //Handle source data change
