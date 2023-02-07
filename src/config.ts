@@ -44,6 +44,7 @@ export interface AddColumn extends Column {
     value?: any
     func: Function
     entered?: boolean
+    skipInCsv?: boolean
 }
 
 export interface Config {

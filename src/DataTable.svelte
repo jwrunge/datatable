@@ -1,12 +1,26 @@
 <script lang="ts">
     import { tick } from "svelte"
     import type { Config, Filter } from "./config"
-    import { loadData, setupSearch, search, sortBy, filter, paginate, SortOrder } from "./processing"
+    import { loadData, setupSearch, search, sortBy, filter, paginate, SortOrder, downloadCsv } from "./processing"
     import { onMount, onDestroy } from "svelte"
     import PaginationUi from "./PaginationUI.svelte"
     import { createEventDispatcher } from "svelte"
 
     const dispatch = createEventDispatcher()
+
+    export let csvRequest: boolean = false
+    export let csvTitle: string
+
+    //Context menu stuff
+    let ctx = false
+
+    //Handle csv download requests
+    $: {
+        if(csvRequest === true) {
+            downloadCsv(sourceData, csvTitle, config.columns)
+            csvRequest = false
+        }
+    }
 
     //State data
     let initialLoad = false
@@ -198,6 +212,14 @@
         // dragging = ""
     }
 
+    function handleHeaderContextMenu() {
+
+    }
+
+    function handleRowContextMenu() {
+        
+    }
+
     //Handle checkbox selections
     // function calcSelectedRows() {
     //     if(!sortedData) {
@@ -269,7 +291,8 @@
                 on:dragenter|preventDefault={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
                 on:dragover|preventDefault
                 on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
-                on:drop={()=> { dragging = "" }}>
+                on:drop={()=> { dragging = "" }}
+                on:contextmenu={(e)=> handleHeaderContextMenu(e, col) }>
                     <span>{col}</span>
                     <span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span>
             </div>
@@ -285,7 +308,7 @@
                 <!-- Each field -->
                 {#each columnOrder as field, colIdx}
                     <!-- Set clickable class and click function if onclick is present in config -->
-                    <div class="col field" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} class:clickable={config.columns[field].onclick !== undefined} on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row, e) : ()=> true} on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus>
+                    <div class="col field" on:contextmenu={(e)=> handleRowContextMenu(e, row)} class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} class:clickable={config.columns[field].onclick !== undefined} on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row, e) : ()=> true} on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus>
                         {#if row[field] !== null && row[field] !== undefined}
                             {#if config.columns[field].type === "date" && config.columns[field].dateFormatFunc}
                                 {#if config?.columns[field]?.html || config?.columns[field]?.extractHtml}
@@ -315,6 +338,26 @@
         <PaginationUi {backIcon} {forwardIcon} bind:page={page} {totalPages} showPageIndices={true} show={paginationShow} maxResultsPerPage={config.maxResultsPerPage} totalResults={unpaginatedResults} sorted={sortedTrigger}/>
     {/if}
 </div>
+
+{#if ctx === "column"}
+    <!-- <ContextMenu config={columnContext.config} mouseX={columnContext.mouseX} mouseY={columnContext.mouseY} keyName={columnContext.keyName} disableColumnCategories={controls.disableColumnCategories}
+        on:add={()=> {if(!controls.disableColumnCategories) columnsModalOpen = true}}
+        on:shrink={e=> {config[e.detail].shrunk = true; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:expand={e=> {config[e.detail].shrunk = false; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:close_column={e=> {config[e.detail].enabled = false; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:close={()=> columnContextMenu = false}>
+    </ContextMenu> -->
+{/if}
+
+{#if ctx === "row"}
+    <!-- <ContextMenu config={columnContext.config} mouseX={columnContext.mouseX} mouseY={columnContext.mouseY} keyName={columnContext.keyName} disableColumnCategories={controls.disableColumnCategories}
+        on:add={()=> {if(!controls.disableColumnCategories) columnsModalOpen = true}}
+        on:shrink={e=> {config[e.detail].shrunk = true; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:expand={e=> {config[e.detail].shrunk = false; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:close_column={e=> {config[e.detail].enabled = false; dispatch("changedColumns", {config, keyStructure: dataInterface.columnOrder})}}
+        on:close={()=> columnContextMenu = false}>
+    </ContextMenu> -->
+{/if}
 
 <style>
     .table-wrapper {

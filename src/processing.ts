@@ -1,6 +1,7 @@
 import { DateTimeFormats, type Config, type Column, type Filter, FilterComparisons } from "./config"
 import Fuse from "fuse.js"
 import { DateTime, type DateTime as DateType } from "luxon"
+import { ExportToCsv } from "export-to-csv"
 
 export enum SortOrder {
     DEFAULT,
@@ -259,3 +260,70 @@ export function paginate<Type>(data: Type[], onPage: number, totalResults: numbe
     //Return data and pagination metadata
     return { data: paginatedData, totalPages }
 }
+
+export function downloadCsv(data: any[], title: string, cfg: Config["columns"]) {
+    let table_as_json = { headers: Object.keys(cfg), rows: []}
+
+    for(let row of data) {
+        let newRow = []
+
+        for(let key of table_as_json.headers) {
+            let datum = row[key as any] as string | number
+
+            if(!datum || cfg[key as keyof Config["columns"]].skipInCsv) {
+                datum = ""
+            }
+            else if(cfg[key as keyof Config["columns"]].extractDate) {
+                console.log(datum)
+                datum = extractDate(datum, cfg[key as keyof Config["columns"]])
+                if(typeof datum === "number") datum = DateTime.fromMillis(datum).toISO()
+            }
+            else if(cfg[key as keyof Config["columns"]].extractHtml) {
+                console.log(datum)
+                datum = extractHtml(datum, cfg[key as keyof Config["columns"]])
+            }
+
+            newRow.push(datum)
+        }
+
+        table_as_json.rows.push(newRow)
+    }
+
+    const csvExporter = new ExportToCsv({
+        filename: title.toLowerCase().replace(" ", "").trim(),
+        title: title,
+        showLabels: true,
+        headers: table_as_json.headers
+    })
+    csvExporter.generateCsv(table_as_json.rows)
+}
+
+// export async function zip_and_download(files: any[], archivename: string, meta = "application/scansion", includeDataPrefix = true) {
+//     //Convert b64 files to bytes
+//     for(let i=0; i<files.length; i++) {
+//         let url = includeDataPrefix ? `data:${meta};base64,${files[i].file_data}` : files[i].file_data
+//         await fetch(url)
+//         .then(res=> {
+//             files[i] = {
+//                 name: files[i].filename,
+//                 lastModified: new Date(),
+//                 input: res
+//             }
+//         })
+//     }
+
+//     //Zip files up
+//     try {
+//         let blob = await downloadZip(files).blob()
+        
+//         //Create link to archive
+//         let link = document.createElement("a")
+//         link.href = URL.createObjectURL(blob)
+//         link.download = archivename
+//         link.click()
+//         link.remove()
+//     }
+//     catch(e) {
+//         console.error(e)
+//     }
+// }
