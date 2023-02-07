@@ -34,6 +34,7 @@ export interface Column {
     options?: any[]
     html?: boolean
     extractHtml?: string | null
+    extractDate?: (val: any)=> number
     onclick?: Function
     category?: string
 }

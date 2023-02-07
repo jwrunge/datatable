@@ -99,7 +99,6 @@
     }
 
     $: {
-        console.log("DATA SOURCE CHANGE")
         sourceData = changeData(sourceData)
         tableData = JSON.parse(JSON.stringify(sourceData))
         sfsp()
@@ -107,7 +106,6 @@
 
     //On config or sourceDat change
     $: {
-        console.log("CONFIG CHANGE")
         gridRepeat = `${config.showCheckboxes ? "2rem " : ""}repeat(${columnOrder.length}, minmax(max-content, 1fr))`
         fuseSearch = setupSearch(sourceData, config.searchable ?? columnOrder as string[], config)
     }

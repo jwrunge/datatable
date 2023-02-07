@@ -63,6 +63,12 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
     return converted
 }
 
+//Extract date
+export function extractDate<Type>(value: Type, cfg: Column): number | Type {
+    if(!cfg.extractDate) return value
+    return cfg.extractDate(value)
+}
+
 //Handle html extraction
 export function extractHtml<Type>(value: Type, cfg: Column): Type {
     //Account for HTML formatting
@@ -101,7 +107,6 @@ export function loadData<Type>(data: (Type & { _meta_processed?: boolean})[], cf
         //If this row has been transformed, skip
         if(row._meta_processed) {
             transformed.push(row)
-            console.log("SKIPPED", row)
             continue
         }
 
@@ -128,11 +133,9 @@ export function loadData<Type>(data: (Type & { _meta_processed?: boolean})[], cf
         transformedRow._meta_processed = true
 
         //Push
-        console.log("NEW", transformedRow)
         transformed.push(transformedRow)
     }
 
-    console.log(transformed)
     return transformed
 }
 
@@ -179,12 +182,21 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
 
     //The sort function
     function s(a: Type, b: Type): number {
-        let aKey = extractHtml(a[key], cfg[key as keyof Config["columns"]])
-        let bKey = extractHtml(b[key], cfg[key as keyof Config["columns"]])
+        let aKey, bKey
+        if(cfg[key as keyof Config["columns"]].extractDate) {
+            aKey = extractDate(a[key], cfg[key as keyof Config["columns"]]) as Type[keyof Type]
+            bKey = extractDate(b[key], cfg[key as keyof Config["columns"]]) as Type[keyof Type]
+        }
+        else if(cfg[key as keyof Config["columns"]].extractHtml) {
+            aKey = extractHtml(a[key], cfg[key as keyof Config["columns"]])
+            bKey = extractHtml(b[key], cfg[key as keyof Config["columns"]])
+        }
+        
 
         //Sort
         let sortOrder = 1
         if(order == SortOrder.DESC) sortOrder = -1
+        if(aKey === undefined || aKey === null || bKey === undefined || bKey === null) return 0
         if(aKey > bKey) return 1 * sortOrder
         else if(aKey < bKey) return -1 * sortOrder
         else return 0
