@@ -39,7 +39,7 @@
         noDataNote: "No data available"
     }
     let tableData: any[] = []
-    let columnOrder: (keyof Config["columns"])[] = []
+    export let columnOrder: (keyof Config["columns"])[] = []
 
     let tableEl: HTMLElement
     let checkboxEl: HTMLElement
@@ -92,16 +92,23 @@
         dispatch("sorted")
     }
 
-    //Handle source data change
+    let gridRepeat: string
+
+    function changeData(sourceData: any) {
+        return loadData(sourceData, config)
+    }
+
     $: {
-        sourceData = loadData(sourceData, config)
-
-        //Set column order
-        if(config.columnOrder) columnOrder = config.columnOrder
-        else columnOrder = Object.keys(config.columns)
-
+        console.log("DATA SOURCE CHANGE")
+        sourceData = changeData(sourceData)
         tableData = JSON.parse(JSON.stringify(sourceData))
+        sfsp()
+    }
 
+    //On config or sourceDat change
+    $: {
+        console.log("CONFIG CHANGE")
+        gridRepeat = `${config.showCheckboxes ? "2rem " : ""}repeat(${columnOrder.length}, minmax(max-content, 1fr))`
         fuseSearch = setupSearch(sourceData, config.searchable ?? columnOrder as string[], config)
     }
 
@@ -232,7 +239,7 @@
     </div>
 
     <!-- The table -->
-    <div class="table" style:grid-template-columns="{config.showCheckboxes ? "2rem " : ""}repeat({columnOrder.length || 1}, minmax(max-content, 1fr))" bind:this={tableEl}>
+    <div class="table" style:grid-template-columns={gridRepeat} bind:this={tableEl}>
         <!-- Column headers -->
         {#if config.showCheckboxes}
             <div class="col head checkbox" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === 0} bind:this={checkboxEl} on:mouseenter={()=>setColRow(0,0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>

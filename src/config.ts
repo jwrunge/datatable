@@ -53,5 +53,5 @@ export interface Config {
     searchable?: string[]
     showCheckboxes?: boolean
     noDataNote?: string,
-    columnOrder?: (keyof Config["columns"])[]
+    // columnOrder?: (keyof Config["columns"])[]
 }

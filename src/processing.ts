@@ -93,11 +93,19 @@ export function extractHtml<Type>(value: Type, cfg: Column): Type {
 }
 
 //Initial data load or data reload
-export function loadData<Type>(data: Type[], cfg: Config): (Partial<Type> & any) {
+export function loadData<Type>(data: (Type & { _meta_processed?: boolean})[], cfg: Config): (Partial<Type> & any) {
     let transformed: (Partial<Type> & any)[] = []
 
     //Loop through data, applying transforms
     for(let row of data) {
+        //If this row has been transformed, skip
+        if(row._meta_processed) {
+            transformed.push(row)
+            console.log("SKIPPED", row)
+            continue
+        }
+
+        //Transform the row
         let transformedRow: (Partial<Type> & any) = {}
 
         //Loop through specified columns for this row
@@ -117,10 +125,14 @@ export function loadData<Type>(data: Type[], cfg: Config): (Partial<Type> & any)
             transformedRow[newKey] = cfg.columns[col].extractHtml ? newVal : toType(cfg.columns[col].type, newVal, cfg.columns[col])
         }
 
+        transformedRow._meta_processed = true
+
         //Push
+        console.log("NEW", transformedRow)
         transformed.push(transformedRow)
     }
 
+    console.log(transformed)
     return transformed
 }
 
