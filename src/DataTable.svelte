@@ -178,6 +178,26 @@
         mouse.row = row
     }
 
+    //Handle column drag
+    //Dragging
+    let dragging: string | number = ""
+    async function drop_trade(dropOn: string | number) {
+        if(!dragging || !Array.isArray(columnOrder)) return
+        if(dragging == dropOn) return
+
+        //Reorder within array
+        let draggingIdx = columnOrder.indexOf(dragging)
+        let dropOnIdx = columnOrder.indexOf(dropOn)
+
+        columnOrder[draggingIdx] = dropOn
+        columnOrder[dropOnIdx] = dragging
+
+        columnOrder = columnOrder
+
+        //Clear dragging
+        // dragging = ""
+    }
+
     //Handle checkbox selections
     // function calcSelectedRows() {
     //     if(!sortedData) {
@@ -243,7 +263,16 @@
             <div class="col head checkbox" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === 0} bind:this={checkboxEl} on:mouseenter={()=>setColRow(0,0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
         {/if}
         {#each columnOrder as col, idx}
-            <div class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><span>{col}</span><span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span></div>
+            <div draggable={true} class:draggedOver={config.columns[col].entered} class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} 
+                on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus 
+                on:dragstart={e=> {dragging = col}}
+                on:dragenter|preventDefault={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
+                on:dragover|preventDefault
+                on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
+                on:drop={()=> { dragging = "" }}>
+                    <span>{col}</span>
+                    <span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span>
+            </div>
         {/each}
         <!-- Rows -->
         {#if tableData.length}

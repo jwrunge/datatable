@@ -43,6 +43,7 @@ export interface AddColumn extends Column {
     name?: string
     value?: any
     func: Function
+    entered?: boolean
 }
 
 export interface Config {
