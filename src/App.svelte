@@ -82,8 +82,8 @@
 </script>
 
 <main>
-  <DataTable sourceData={jsondata} config={config} searchEntry={search} showPaginationUI={true} paginationShow="results" {page}>
+  <!-- <DataTable sourceData={jsondata} config={config} searchEntry={search} showPaginationUI={true} paginationShow="results" {page}>
     <div slot="header"><h2>My Table</h2></div>
     <div slot="subheader"><input type="text" bind:value={search}></div>
-  </DataTable>
+  </DataTable> -->
 </main>
