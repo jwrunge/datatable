@@ -131,6 +131,7 @@ export function loadData<Type>(data: (Type & { _meta_processed?: boolean})[], cf
             transformedRow[newKey] = cfg.columns[col].extractHtml ? newVal : toType(cfg.columns[col].type, newVal, cfg.columns[col])
         }
 
+        transformedRow._originalData = row
         transformedRow._meta_processed = true
 
         //Push
