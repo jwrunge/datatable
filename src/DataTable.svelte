@@ -273,7 +273,7 @@
         if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
         touchCtxTimeout = setTimeout(()=> {
             handleRowContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, row, column)
-        }, 300)
+        }, 1000)
     }
 
     function handleRowContextMenu(e: MouseEvent, row: any, column: string | number) {
@@ -356,11 +356,11 @@
         {#each columnOrder as col, idx}
             <div draggable={true} class:draggedOver={config.columns[col].entered} class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} 
                 on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus 
-                on:dragstart={e=> {dragging = col}}
+                on:dragstart|preventDefault|stopPropagation={e=> { console.log("Dragging?"); ctx = ""; endTouchContext(); e.dataTransfer?.setData("text/plain", "Draggin"); dragging = col}}
                 on:dragenter|preventDefault={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
                 on:dragover|preventDefault
                 on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
-                on:drop={()=> { dragging = "" }}
+                on:drop|preventDefault={()=> { dragging = "" }}
                 on:touchend|stopPropagation={()=> endTouchContext()}
                 on:touchmove|stopPropagation={()=> endTouchContext()}
                 on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
