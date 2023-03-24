@@ -234,13 +234,46 @@
         // dragging = ""
     }
 
+    let touchCtxTimeout: any
+
+    //Detect iOS - from Pierre @ https://stackoverflow.com/questions/9038625/detect-if-device-is-ios
+    function iOS() {
+        return [
+            'iPad Simulator',
+            'iPhone Simulator',
+            'iPod Simulator',
+            'iPad',
+            'iPhone',
+            'iPod'
+        ].includes(navigator.platform)
+        // iPad on iOS 13 detection
+        || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+    }
+
+    function queueHeaderContextMenu(e: TouchEvent, col: string | number) {
+        if(!iOS()) return
+        if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
+        touchCtxTimeout = setTimeout(()=> {
+            handleHeaderContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, col)
+        }, 300)
+    }
+
     function handleHeaderContextMenu(e: MouseEvent, column: string | number) {
+        console.log(e.clientX, e.clientY)
         contextMenuOps.col = column
         contextMenuOps.mouseX = e.clientX
         contextMenuOps.mouseY = e.clientY
         contextMenuOps.row = null
 
         ctx = "column"
+    }
+
+    function queueRowContextMenu(e: TouchEvent, row: any, column: string | number) {
+        if(!iOS()) return
+        if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
+        touchCtxTimeout = setTimeout(()=> {
+            handleRowContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, row, column)
+        }, 300)
     }
 
     function handleRowContextMenu(e: MouseEvent, row: any, column: string | number) {
@@ -250,6 +283,10 @@
         contextMenuOps.row = row
 
         ctx = "row"
+    }
+
+    function endTouchContext() {
+        if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
     }
 
     //Handle checkbox selections
@@ -324,7 +361,10 @@
                 on:dragover|preventDefault
                 on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
                 on:drop={()=> { dragging = "" }}
-                on:contextmenu|preventDefault|stopPropagation={(e)=> handleHeaderContextMenu(e, col) }>
+                on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
+                on:touchend|stopPropagation={()=> endTouchContext()}
+                on:contextmenu|preventDefault|stopPropagation={(e)=> handleHeaderContextMenu(e, col) }
+            >
                     <span>{col}</span>
                     <span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span>
             </div>
@@ -340,7 +380,15 @@
                 <!-- Each field -->
                 {#each columnOrder as field, colIdx}
                     <!-- Set clickable class and click function if onclick is present in config -->
-                    <div class="col field" on:contextmenu|preventDefault|stopPropagation={(e)=> handleRowContextMenu(e, row._originalData, field)} class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} class:clickable={config.columns[field].onclick !== undefined} on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row._originalData, e) : ()=> true} on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus>
+                    <div class="col field" 
+                        on:contextmenu|preventDefault|stopPropagation={(e)=> handleRowContextMenu(e, row._originalData, field)} 
+                        on:touchstart|stopPropagation={(e)=> queueRowContextMenu(e, row._originalData, field)}
+                        on:touchend|stopPropagation={()=> endTouchContext()}
+                        class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} 
+                        class:clickable={config.columns[field].onclick !== undefined} 
+                        on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row._originalData, e) : ()=> true} 
+                        on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus
+                    >
                         {#if row[field] !== null && row[field] !== undefined}
                             {#if config.columns[field].type === "date" && config.columns[field].dateFormatFunc}
                                 {#if config?.columns[field]?.html || config?.columns[field]?.extractHtml}
