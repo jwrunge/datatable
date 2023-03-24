@@ -255,7 +255,7 @@
         if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
         touchCtxTimeout = setTimeout(()=> {
             handleHeaderContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, col)
-        }, 300)
+        }, 500)
     }
 
     function handleHeaderContextMenu(e: MouseEvent, column: string | number) {
@@ -361,8 +361,9 @@
                 on:dragover|preventDefault
                 on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
                 on:drop={()=> { dragging = "" }}
-                on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
                 on:touchend|stopPropagation={()=> endTouchContext()}
+                on:touchmove|stopPropagation={()=> endTouchContext()}
+                on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
                 on:contextmenu|preventDefault|stopPropagation={(e)=> handleHeaderContextMenu(e, col) }
             >
                     <span>{col}</span>
@@ -382,8 +383,9 @@
                     <!-- Set clickable class and click function if onclick is present in config -->
                     <div class="col field" 
                         on:contextmenu|preventDefault|stopPropagation={(e)=> handleRowContextMenu(e, row._originalData, field)} 
-                        on:touchstart|stopPropagation={(e)=> queueRowContextMenu(e, row._originalData, field)}
                         on:touchend|stopPropagation={()=> endTouchContext()}
+                        on:touchmove|stopPropagation={()=> endTouchContext()}
+                        on:touchstart|stopPropagation={(e)=> queueRowContextMenu(e, row._originalData, field)}
                         class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} 
                         class:clickable={config.columns[field].onclick !== undefined} 
                         on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row._originalData, e) : ()=> true} 
