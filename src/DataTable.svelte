@@ -234,6 +234,34 @@
         // dragging = ""
     }
 
+    function preventBehavior(e: Event) {
+        e.preventDefault()
+    }
+
+    let touchCtxTimeout: any
+
+    //Detect iOS - from Pierre @ https://stackoverflow.com/questions/9038625/detect-if-device-is-ios
+    function iOS() {
+        return [
+            'iPad Simulator',
+            'iPhone Simulator',
+            'iPod Simulator',
+            'iPad',
+            'iPhone',
+            'iPod'
+        ].includes(navigator.platform)
+        // iPad on iOS 13 detection
+        || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+    }
+
+    function queueHeaderContextMenu(e: TouchEvent, col: string | number) {
+        if(!iOS()) return
+        if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
+        touchCtxTimeout = setTimeout(()=> {
+            handleHeaderContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, col)
+        }, 500)
+    }
+
     function handleHeaderContextMenu(e: MouseEvent, column: string | number) {
         contextMenuOps.col = column
         contextMenuOps.mouseX = e.clientX
@@ -241,6 +269,14 @@
         contextMenuOps.row = null
 
         ctx = "column"
+    }
+
+    function queueRowContextMenu(e: TouchEvent, row: any, column: string | number) {
+        if(!iOS()) return
+        if(touchCtxTimeout) clearTimeout(touchCtxTimeout)
+        touchCtxTimeout = setTimeout(()=> {
+            handleRowContextMenu({ clientX: e.touches[0]?.clientX, clientY: e.touches[0]?.clientY } as unknown as MouseEvent, row, column)
+        }, 500)
     }
 
     function handleRowContextMenu(e: MouseEvent, row: any, column: string | number) {
@@ -319,12 +355,17 @@
         {#each columnOrder as col, idx}
             <div draggable={true} class:draggedOver={config.columns[col].entered} class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} 
                 on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus 
-                on:dragstart={e=> {dragging = col}}
+                on:dragstart|preventDefault={e=> { ctx = ""; endTouchContext(); e.dataTransfer?.setData("text/plain", "Dragging"); dragging = col; document.addEventListener("touchmove", preventBehavior, { passive: false }); }}
                 on:dragenter|preventDefault={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
                 on:dragover|preventDefault
                 on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
-                on:drop={()=> { dragging = "" }}
-                on:contextmenu|preventDefault|stopPropagation={(e)=> handleHeaderContextMenu(e, col) }>
+                on:drop|preventDefault={()=> { dragging = ""; document.removeEventListener("touchstart", preventBehavior); document.removeEventListener("touchmove", preventBehavior); }}
+                on:drag|preventDefault|stopPropagation
+                on:touchend|stopPropagation={()=> endTouchContext()}
+                on:touchmove|stopPropagation={(e)=> { endTouchContext() }}
+                on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
+                on:contextmenu|preventDefault|stopPropagation={(e)=> handleHeaderContextMenu(e, col) }
+            >
                     <span>{col}</span>
                     <span>{@html sortByKey === col ? sortIcons[sortByOrder] : ""}</span>
             </div>
