@@ -490,9 +490,11 @@
         height: 100%;
     }
 
-    .col {
-        -webkit-user-select: none; /* Safari */
-        -ms-user-select: none; /* IE 10+ */
-        user-select: none;
+    @media (hover: none) {
+        .col {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ */
+            user-select: none;
+        }
     }
 </style>

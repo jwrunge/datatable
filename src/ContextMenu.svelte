@@ -32,6 +32,9 @@
 </script>
 
 <div transition:fade={{duration: 200}} class="context-background" on:click={()=> dispatch("close")} on:keypress></div>
+<div class="tri-container" style={placeBox(pos)}>
+    <div out:scale={{duration: 200}} class="tri"></div>
+</div>
 <div transition:scale={{duration: 200}} class="context-menu" style={placeBox(pos)}>
     {#if context === "column"}
         <!-- <div class="context-title">Column Options</div> -->
@@ -45,6 +48,23 @@
 </div>
 
 <style lang="scss">
+    .tri-container {
+        position: fixed;
+        z-index: 5;
+        transform: translateX(calc(-50% - .75rem)) translateY(.25rem);
+
+        .tri {
+            z-index: 5; 
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 0 .75rem .8rem .75rem;
+            border-color: transparent transparent white transparent;
+            position: absolute;
+            transform-origin: bottom center;
+        }
+    }
+
     .context-background {
         background: rgba(0,0,0,.5);
         position: fixed;
@@ -59,5 +79,8 @@
         position: fixed;
         z-index: 5;
         transform: translateX(-50%) translateY(1rem);
+        overflow: hidden;
+
+        transform-origin: top center;
     }
 </style>
