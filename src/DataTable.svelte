@@ -223,10 +223,11 @@
         let draggingIdx = columnOrder.indexOf(dragging)
         let dropOnIdx = columnOrder.indexOf(dropOn)
 
-        columnOrder[draggingIdx] = dropOn
-        columnOrder[dropOnIdx] = dragging
+        let co = JSON.parse(JSON.stringify(columnOrder))
+        co.splice(draggingIdx, 1)
+        co.splice(dropOnIdx, 0, dragging)
 
-        columnOrder = columnOrder
+        columnOrder = co
 
         dispatch("sorted", sourceData)
 
@@ -358,14 +359,13 @@
             <div class="col head checkbox" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === 0} bind:this={checkboxEl} on:mouseenter={()=>setColRow(0,0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
         {/if}
         {#each columnOrder as col, idx}
-            <div draggable={true} class:draggedOver={config.columns[col].entered} class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} 
+            <div draggable={true} class:draggedOver={config?.columns[col]?.entered} class="col head" class:row-highlighted={mouse.row === 0} class:col-highlighted={mouse.col === idx+1 } style:min-width={columnWidthOverride} 
                 on:click={()=> handleHeaderClick(col)} on:keypress on:mouseenter={()=>setColRow(idx+1, 0)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus 
-                on:dragstart|preventDefault={e=> { ctx = ""; endTouchContext(); e.dataTransfer?.setData("text/plain", "Dragging"); dragging = col; document.addEventListener("touchmove", preventBehavior, { passive: false }); }}
-                on:dragenter|preventDefault={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
-                on:dragover|preventDefault
-                on:dragleave|preventDefault={()=> { config.columns[col].entered = false }}
-                on:drop|preventDefault={()=> { dragging = ""; document.removeEventListener("touchstart", preventBehavior); document.removeEventListener("touchmove", preventBehavior); }}
-                on:drag|preventDefault|stopPropagation
+                on:dragstart={()=> { ctx = ""; console.log("DRAGSTART"); dragging = col; }}
+                on:dragenter={()=> {console.log(col); config.columns[col].entered = true; drop_trade(col) }}
+                on:dragover
+                on:dragleave={()=> { config.columns[col].entered = false }}
+                on:drop|preventDefault={()=> { dragging = ""; document.removeEventListener("touchstart", preventBehavior); }}
                 on:touchend|stopPropagation={()=> endTouchContext()}
                 on:touchmove|stopPropagation={(e)=> { endTouchContext() }}
                 on:touchstart|stopPropagation={(e)=> queueHeaderContextMenu(e, col)}
@@ -392,16 +392,16 @@
                         on:touchmove|stopPropagation={()=> endTouchContext()}
                         on:touchstart|stopPropagation={(e)=> queueRowContextMenu(e, row._originalData, field)}
                         class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === colIdx+1} class:even-row={index % 2 === 0} 
-                        class:clickable={config.columns[field].onclick !== undefined} 
-                        on:click={config.columns[field].onclick ? (e)=> config.columns[field].onclick(row[field], row._originalData, e) : ()=> true} 
+                        class:clickable={config?.columns[field]?.onclick !== undefined} 
+                        on:click={config.columns[field].onclick ? (e)=> config?.columns[field]?.onclick(row[field], row._originalData, e) : ()=> true} 
                         on:keypress on:mouseenter={()=>setColRow(colIdx+1,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus
                     >
                         {#if row[field] !== null && row[field] !== undefined}
                             {#if config.columns[field].type === "date" && config.columns[field].dateFormatFunc}
                                 {#if config?.columns[field]?.html || config?.columns[field]?.extractHtml}
-                                    {@html config.columns[field].dateFormatFunc(row[field])}
+                                    {@html config?.columns[field]?.dateFormatFunc(row[field])}
                                 {:else}
-                                    {config.columns[field].dateFormatFunc(row[field])}
+                                    {config?.columns[field]?.dateFormatFunc(row[field])}
                                 {/if}
                             {:else}
                                 {#if config.columns[field].html || config.columns[field].extractHtml}

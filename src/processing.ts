@@ -152,12 +152,6 @@ export function setupSearch<Type>(data: Type[], keys: string[], cfg: Config) {
             keys = []
         }
     }
-    else {
-        //Don't search dates
-        keys = keys.filter(k=> {
-            return cfg.columns[k as keyof Config["columns"]].type !== "date"
-        })
-    }
 
     if(!keys) keys = []
 
@@ -275,12 +269,10 @@ export function downloadCsv(data: any[], title: string, cfg: Config["columns"]) 
                 datum = ""
             }
             else if(cfg[key as keyof Config["columns"]].extractDate) {
-                console.log(datum)
                 datum = extractDate(datum, cfg[key as keyof Config["columns"]])
                 if(typeof datum === "number") datum = DateTime.fromMillis(datum).toISO()
             }
             else if(cfg[key as keyof Config["columns"]].extractHtml) {
-                console.log(datum)
                 datum = extractHtml(datum, cfg[key as keyof Config["columns"]])
             }
 
