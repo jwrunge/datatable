@@ -66,7 +66,7 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
 
 //Extract date
 export function extractDate<Type>(value: Type, cfg: Column): number | Type {
-    if(!cfg.extractDate) return value
+    if(!cfg?.extractDate) return value
     return cfg.extractDate(value)
 }
 
@@ -179,7 +179,7 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
     //The sort function
     function s(a: Type, b: Type): number {
         let aKey, bKey
-        if(cfg[key as keyof Config["columns"]].extractDate) {
+        if(cfg[key as keyof Config["columns"]]?.extractDate) {
             aKey = extractDate(a[key], cfg[key as keyof Config["columns"]]) as Type[keyof Type]
             bKey = extractDate(b[key], cfg[key as keyof Config["columns"]]) as Type[keyof Type]
         }
@@ -268,7 +268,7 @@ export function downloadCsv(data: any[], title: string, cfg: Config["columns"]) 
             if(!datum || cfg[key as keyof Config["columns"]].skipInCsv) {
                 datum = ""
             }
-            else if(cfg[key as keyof Config["columns"]].extractDate) {
+            else if(cfg[key as keyof Config["columns"]]?.extractDate) {
                 datum = extractDate(datum, cfg[key as keyof Config["columns"]])
                 if(typeof datum === "number") datum = DateTime.fromMillis(datum).toISO()
             }
