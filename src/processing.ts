@@ -77,7 +77,7 @@ export function extractHtml<Type>(value: Type, cfg: Column): Type {
 
     //Create element to get innerText
     let div = document.createElement("div")
-    div.innerHTML = typeof value === "string" ? value.trim() : (value as number | Date).toString()
+    div.innerHTML = typeof value === "string" ? value.trim() : (value as number | Date)?.toString()
 
     //Handle html extraction
     try {
