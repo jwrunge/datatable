@@ -129,13 +129,19 @@
     let gridRepeat: string
 
     function changeData(sourceData: any) {
-        return loadData(sourceData, config)
+        let data = loadData(sourceData, config)
+        if(data) return data
     }
 
     $: {
-        sourceData = changeData(sourceData)
-        tableData = JSON.parse(JSON.stringify(sourceData))
-        sfsp()
+        try {
+            sourceData = changeData(sourceData)
+            tableData = JSON.parse(JSON.stringify(sourceData))
+            sfsp()
+        }
+        catch(e) {
+            console.warn("Datatable aborted update", e)
+        }
     }
 
     //On config or sourceDat change

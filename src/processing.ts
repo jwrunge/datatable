@@ -104,6 +104,7 @@ export function loadData<Type>(data: (Type & { _meta_processed?: boolean})[], cf
     let transformed: (Partial<Type> & any)[] = []
 
     //Loop through data, applying transforms
+    if(!data || !Array.isArray(data)) return
     for(let row of data) {
         //If this row has been transformed, skip
         if(row._meta_processed) {
