@@ -270,7 +270,6 @@
     }
 
     function handleHeaderContextMenu(e: MouseEvent, column: string | number) {
-        console.log(e.clientX, e.clientY)
         contextMenuOps.col = column
         contextMenuOps.mouseX = e.clientX
         contextMenuOps.mouseY = e.clientY
