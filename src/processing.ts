@@ -67,7 +67,7 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
 //Extract date
 export function extractDate<Type>(value: Type, cfg: Column): number | Type {
     if(!cfg?.extractDate) return value
-    return cfg.extractDate(value)
+    return cfg.extractDate(value) || 0
 }
 
 //Handle html extraction
@@ -194,6 +194,7 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
         let sortOrder = 1
         if(order == SortOrder.DESC) sortOrder = -1
         if(aKey === undefined || aKey === null || bKey === undefined || bKey === null) return 0
+        console.log(typeof aKey, typeof bKey, aKey, bKey)
         if(aKey > bKey) return 1 * sortOrder
         else if(aKey < bKey) return -1 * sortOrder
         else return 0
