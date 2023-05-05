@@ -194,7 +194,7 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
         let sortOrder = 1
         if(order == SortOrder.DESC) sortOrder = -1
         if(aKey === undefined || aKey === null || bKey === undefined || bKey === null) return 0
-        console.log(typeof aKey, typeof bKey, aKey, bKey)
+
         if(aKey > bKey) return 1 * sortOrder
         else if(aKey < bKey) return -1 * sortOrder
         else return 0
@@ -203,7 +203,7 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
     return data.sort(s)
 }
 
-export function filter<Type>(data: Type[], filters: Filter[]): Type[] {
+export function filter<Type>(data: Type[], config: Config["columns"], filters: Filter[]): Type[] {
     let tempData: Type[]
 
     //Run tests for each filter
@@ -211,24 +211,39 @@ export function filter<Type>(data: Type[], filters: Filter[]): Type[] {
         let validRow = true
 
         for(let f of filters) {
-            if(!row[f.key as keyof Type]) return
-            if(typeof f.value === typeof row[f.key as keyof Type]) {
-                switch(f.comparison) {
-                    case FilterComparisons.EQUAL:
-                        return row[f.key as keyof Type] === f.value
-                    case FilterComparisons.GT:
-                        return row[f.key as keyof Type] > f.value
-                    case FilterComparisons.GTE:
-                        return row[f.key as keyof Type] >= f.value
-                    case FilterComparisons.LT:
-                        return row[f.key as keyof Type] < f.value
-                    case FilterComparisons.LTE:
-                        return row[f.key as keyof Type] <= f.value
-                    case FilterComparisons.NOT:
-                        return row[f.key as keyof Type] !== f.value
-                    default:
-                        return true
-                }
+            if(!f.key || !f.comparison || (typeof f.value === "string" && (f.value as string) === "") || f.value === undefined) return true
+            if(!row[f.key as keyof Type]) return false
+
+            let columnSettings = config[f.key as keyof Column]
+            let rowValue = row[f.key as keyof Type]
+
+            if(columnSettings.extractHtml) rowValue = extractHtml(rowValue, columnSettings)
+            
+            if(columnSettings.type === "date") {
+                //@ts-ignore
+                f.value = DateTime.fromJSDate(new Date(f.value)).toMillis()
+                console.log(rowValue, rowValue.toMillis())
+                //@ts-ignore
+                rowValue = (rowValue as DateTime).toMillis()
+                console.log(f.value, rowValue)
+            }
+
+            //@ts-ignore
+            switch(FilterComparisons[f.comparison] as FilterComparisons) {
+                case FilterComparisons.EQUAL:
+                    return rowValue == f.value
+                case FilterComparisons.GT:
+                    return rowValue > f.value
+                case FilterComparisons.GTE:
+                    return rowValue >= f.value
+                case FilterComparisons.LT:
+                    return rowValue < f.value
+                case FilterComparisons.LTE:
+                    return rowValue <= f.value
+                case FilterComparisons.NOT:
+                    return rowValue != f.value
+                default:
+                    return false
             }
         }
 

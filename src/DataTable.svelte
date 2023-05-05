@@ -105,7 +105,7 @@
             tableData = search(searchEntry, fuseSearch) ?? sourceData.slice(0)
         else
             tableData = sourceData.slice(0)
-        if(filters && filters.length) tableData = filter(tableData, filters)
+        // if(filters && filters.length) tableData = filter(tableData, filters)
         if(sortByKey) tableData = sortBy(tableData, sortByKey, sortByOrder, config.columns)
         totalResults = tableData.length //Get the pre-paginated total results
 
@@ -383,7 +383,7 @@
         <!-- Rows -->
         {#if tableData.length}
             <!-- Each row -->
-            {#each tableData as row, index}
+            {#each filter(tableData, config.columns, filters) as row, index}
                 <!-- Row checkbox -->
                 {#if config.showCheckboxes}
                     <div class="col field checkbox" class:row-highlighted={mouse.row === index+1} class:col-highlighted={mouse.col === 0} class:even-row={index % 2 === 0} on:mouseenter={()=>setColRow(0,index+1)} on:mouseleave={()=>setColRow(undefined, undefined)} on:focus><input type="checkbox"></div>
@@ -406,7 +406,7 @@
                                 {#if config?.columns[field]?.html || config?.columns[field]?.extractHtml}
                                     {@html config?.columns[field]?.dateFormatFunc(row[field])}
                                 {:else}
-                                    {config?.columns[field]?.dateFormatFunc(row[field])}
+                                    { config?.columns[field]?.dateFormatFunc(row[field]) }
                                 {/if}
                             {:else}
                                 {#if config.columns[field].html || config.columns[field].extractHtml}
