@@ -10,14 +10,14 @@ export enum SortOrder {
 }
 
 //Handle type conversion
-export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
+export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type | undefined {
     //Handle bad value
     if(value === undefined || value === null) {
         return value
     }
 
     //Set up date conversion
-    let converted: Type
+    let converted: Type | undefined = undefined
 
     function fromDateFormat(format: DateTimeFormats, date: string): DateType {
         switch(format) {
@@ -67,7 +67,13 @@ export function toType<Type>(t: Column["type"], value: any, cfg: Column): Type {
 //Extract date
 export function extractDate<Type>(value: Type, cfg: Column): number | Type {
     if(!cfg?.extractDate) return value
-    return cfg.extractDate(value) || 0
+    try {
+        return cfg.extractDate(value) || 0
+    }
+    catch(e) {
+        console.warn(e)
+        return 0
+    }
 }
 
 //Handle html extraction
@@ -205,29 +211,42 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
 
 export function filter<Type>(data: Type[], config: Config["columns"], filters: Filter[]): Type[] {
     let tempData: Type[]
+    console.log(data)
 
     //Run tests for each filter
     tempData = data.filter((row: Type) => {
         let validRow = true
 
         for(let f of filters) {
-            if(!f.key || !f.comparison || (typeof f.value === "string" && (f.value as string) === "") || f.value === undefined) return true
-            if(!row[f.key as keyof Type]) return false
+            //@ts-ignore
+            if(config[f.key as keyof Column]?.options) f.comparison = `EQUAL`
+            if(!f.key || f.comparison === undefined || (typeof f.value === "string" && (f.value as string) === "") || f.value === undefined) return true
+            if(row[f.key as keyof Type] === undefined) return false
 
             let columnSettings = config[f.key as keyof Column]
-            let rowValue = row[f.key as keyof Type]
+            //@ts-ignore
+            let rowValue = structuredClone(row[f.key as keyof Type])
 
             if(columnSettings.extractHtml) rowValue = extractHtml(rowValue, columnSettings)
+            if(columnSettings.extractDate) {
+                try {
+                    //@ts-ignore
+                    if(rowValue?.ts) rowValue = parseInt(rowValue.ts)
+                    //@ts-ignore
+                    else rowValue = extractDate(rowValue, columnSettings)
+                }
+                catch(e) { 
+                    console.warn(e)
+                    return true 
+                }
+            }
             
             if(columnSettings.type === "date") {
                 //@ts-ignore
                 f.value = DateTime.fromJSDate(new Date(f.value)).toMillis()
-                console.log(rowValue, rowValue.toMillis())
-                //@ts-ignore
-                rowValue = (rowValue as DateTime).toMillis()
-                console.log(f.value, rowValue)
             }
 
+            console.log("SWITCHING", rowValue, f.value, rowValue > f.value)
             //@ts-ignore
             switch(FilterComparisons[f.comparison] as FilterComparisons) {
                 case FilterComparisons.EQUAL:

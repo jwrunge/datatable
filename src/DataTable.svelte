@@ -105,7 +105,7 @@
             tableData = search(searchEntry, fuseSearch) ?? sourceData.slice(0)
         else
             tableData = sourceData.slice(0)
-        // if(filters && filters.length) tableData = filter(tableData, filters)
+        // if(filters && filters.length) tableData = filter(tableData, config.columns, filters)
         if(sortByKey) tableData = sortBy(tableData, sortByKey, sortByOrder, config.columns)
         totalResults = tableData.length //Get the pre-paginated total results
 
