@@ -211,7 +211,6 @@ export function sortBy<Type>(data: Type[], key: keyof Type, order: SortOrder, cf
 
 export function filter<Type>(data: Type[], config: Config["columns"], filters: Filter[]): Type[] {
     let tempData: Type[]
-    console.log(data)
 
     //Run tests for each filter
     tempData = data.filter((row: Type) => {
@@ -246,7 +245,6 @@ export function filter<Type>(data: Type[], config: Config["columns"], filters: F
                 f.value = DateTime.fromJSDate(new Date(f.value)).toMillis()
             }
 
-            console.log("SWITCHING", rowValue, f.value, rowValue > f.value)
             //@ts-ignore
             switch(FilterComparisons[f.comparison] as FilterComparisons) {
                 case FilterComparisons.EQUAL:
