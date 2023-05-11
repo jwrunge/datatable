@@ -32,7 +32,7 @@
     //Handle csv download requests
     $: {
         if(csvRequest === true) {
-            downloadCsv(sourceData, csvTitle, config.columns)
+            downloadCsv(sourceData, csvTitle, config.columns, columnOrder)
             csvRequest = false
         }
     }

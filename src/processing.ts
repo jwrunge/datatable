@@ -290,8 +290,8 @@ export function paginate<Type>(data: Type[], onPage: number, totalResults: numbe
     return { data: paginatedData, totalPages }
 }
 
-export function downloadCsv(data: any[], title: string, cfg: Config["columns"]) {
-    let table_as_json = { headers: Object.keys(cfg), rows: []}
+export function downloadCsv(data: any[], title: string, cfg: Config["columns"], columnOrder: string[]) {
+    let table_as_json = { headers: columnOrder, rows: []}
 
     for(let row of data) {
         let newRow = []
