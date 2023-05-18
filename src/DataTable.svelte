@@ -75,8 +75,8 @@
 
     export let searchEntry: string = ""
     let fuseSearch: any
-    let sortByKey: keyof Config["columns"] = ""
-    let sortByOrder: SortOrder = SortOrder.DEFAULT
+    export let sortByKey: keyof Config["columns"] = ""
+    export let sortByOrder: SortOrder = SortOrder.DEFAULT
 
     //Pagination function (for fetching from the server)
     export let paginationFunc: Function | undefined = undefined
